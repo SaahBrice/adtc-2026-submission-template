@@ -11,9 +11,40 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config import CONFIG, OCRConfig
+from ..config import CONFIG, AppConfig, OCRConfig
 from .preprocess import load_and_clean
 from .text_ocr import ocr_text
+
+
+def resolve_engine(cfg: AppConfig | None = None) -> str:
+    """Decide which digitize engine to use: ``"vlm"`` or ``"tesseract"``.
+
+    ``ocr.engine`` may be ``"vlm"``, ``"tesseract"``, or ``"auto"`` (use the VLM
+    when its weights are present, otherwise fall back to Tesseract).
+    """
+    cfg = cfg or CONFIG
+    choice = cfg.ocr.engine.lower()
+    if choice == "vlm":
+        return "vlm"
+    if choice == "tesseract":
+        return "tesseract"
+    from . import vlm  # lazy: avoids importing llama_cpp paths unless needed
+
+    return "vlm" if vlm.is_available(cfg.vision) else "tesseract"
+
+
+def image_to_markdown(path: str | Path, cfg: AppConfig | None = None) -> str:
+    """Transcribe an image to text/Markdown using the resolved engine.
+
+    The VLM returns structured Markdown; Tesseract returns plain text. Used by RAG
+    ingestion so image documents are indexed with the best available quality.
+    """
+    cfg = cfg or CONFIG
+    if resolve_engine(cfg) == "vlm":
+        from .vlm import get_vision
+
+        return get_vision(cfg.vision).transcribe(path)
+    return ocr_image_to_text(path, cfg.ocr)
 
 
 @dataclass

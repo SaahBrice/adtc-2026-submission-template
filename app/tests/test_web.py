@@ -28,8 +28,11 @@ def test_status_reports_model_presence():
     resp = _client().get("/api/status")
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body) == {"llm_present", "embed_present", "indexed_chunks"}
+    assert {"llm_present", "embed_present", "vision_present", "engine", "indexed_chunks"} <= set(
+        body
+    )
     assert isinstance(body["indexed_chunks"], int)
+    assert body["engine"] in {"vlm", "tesseract"}
 
 
 def test_ask_empty_question_rejected():

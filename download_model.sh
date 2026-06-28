@@ -24,6 +24,14 @@ CHAT_URL="https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/ma
 EMBED_FILE="$MODEL_DIR/bge-small-en-v1.5-q4_k_m.gguf"
 EMBED_URL="https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q4_k_m.gguf"
 
+# ── Vision model (digitize/OCR): Qwen2.5-VL-3B, Q4_K_M + mmproj, ~3.3 GB, Apache-2.0 ──
+# Reads handwriting/printed pages + formulas directly to Markdown. App-side only
+# (not the benchmarked model); loaded alone at digitize time to respect 8 GB RAM.
+VLM_FILE="$MODEL_DIR/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf"
+VLM_URL="https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf"
+VLM_MMPROJ_FILE="$MODEL_DIR/mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf"
+VLM_MMPROJ_URL="https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf"
+
 # Download $2 → $1 only if missing. Uses curl or wget, whichever is available.
 download() {
   local dest="$1" url="$2" label="$3"
@@ -46,7 +54,9 @@ download() {
   echo "[done] $dest"
 }
 
-download "$CHAT_FILE"  "$CHAT_URL"  "chat model (Phi-3.5-mini Q4_K_M, ~2.39 GB)"
-download "$EMBED_FILE" "$EMBED_URL" "embedding model (bge-small-en-v1.5, ~25 MB)"
+download "$CHAT_FILE"        "$CHAT_URL"        "chat model (Phi-3.5-mini Q4_K_M, ~2.39 GB)"
+download "$EMBED_FILE"       "$EMBED_URL"       "embedding model (bge-small-en-v1.5, ~25 MB)"
+download "$VLM_FILE"         "$VLM_URL"         "vision model (Qwen2.5-VL-3B Q4_K_M, ~1.93 GB)"
+download "$VLM_MMPROJ_FILE"  "$VLM_MMPROJ_URL"  "vision projector (mmproj f16, ~1.34 GB)"
 
 echo "all model weights ready in $MODEL_DIR"

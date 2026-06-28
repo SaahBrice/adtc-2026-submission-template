@@ -54,16 +54,16 @@ class Embedder:
         return self.embed([text])[0]
 
 
-_EMBEDDER: Embedder | None = None
-
-
 def get_embedder(cfg: EmbeddingConfig | None = None) -> Embedder:
-    """Process-wide singleton embedder (loads weights once).
+    """Return the active ``Embedder``, loading it if needed.
 
-    Plain module global rather than ``lru_cache`` (the config dataclass is
-    unhashable). First call wins; later ``cfg`` args are ignored.
+    Managed by ``adtc_notes._models``; loading the embedder evicts the heavy
+    vision model (digitize and Q&A are separate flows). It is tiny, so it may
+    stay resident alongside the chat LLM during RAG.
     """
-    global _EMBEDDER
-    if _EMBEDDER is None:
-        _EMBEDDER = Embedder(cfg or CONFIG.embedding)
-    return _EMBEDDER
+    from .. import _models
+
+    existing = _models.get("embed")
+    if existing is not None:
+        return existing
+    return _models.register("embed", Embedder(cfg or CONFIG.embedding), evict=("vision",))

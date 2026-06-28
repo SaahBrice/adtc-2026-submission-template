@@ -124,6 +124,7 @@
     <span>offline document assistant · corporate / enterprise</span>
   </div>
   <div id="status">
+    <span class="stat"><span class="dot" id="dotVis"></span>Vision</span>
     <span class="stat"><span class="dot" id="dotLLM"></span>Model</span>
     <span class="stat"><span class="dot" id="dotEmb"></span>Embeddings</span>
     <span class="stat"><b id="chunks">0</b> indexed</span>
@@ -191,6 +192,7 @@ function show(which){
 async function refreshStatus(){
   try{
     const s = await (await fetch('/api/status')).json();
+    document.getElementById('dotVis').classList.toggle('on', s.vision_present);
     document.getElementById('dotLLM').classList.toggle('on', s.llm_present);
     document.getElementById('dotEmb').classList.toggle('on', s.embed_present);
     document.getElementById('chunks').textContent = s.indexed_chunks;

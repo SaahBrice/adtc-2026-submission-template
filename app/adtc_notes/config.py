@@ -83,6 +83,37 @@ class EmbeddingConfig:
 
 
 @dataclass
+class VisionConfig:
+    """Settings for the local vision-language model used to digitize images.
+
+    A GGUF VLM (Qwen2.5-VL) run through llama.cpp with an mmproj projector. It reads
+    handwriting/printed pages and formulas directly into Markdown — far better than
+    Tesseract on cursive. App-side only (not the ADTC-benchmarked model). Loaded
+    alone at digitize time (see model manager) to keep peak RAM within 8 GB.
+    """
+
+    model_filename: str = field(
+        default_factory=lambda: _env("VLM_FILE", "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf")
+    )
+    mmproj_filename: str = field(
+        default_factory=lambda: _env("VLM_MMPROJ", "mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf")
+    )
+    # Vision tokens are many; a larger context is needed than for plain chat.
+    n_ctx: int = field(default_factory=lambda: _env_int("VLM_N_CTX", 8192))
+    n_threads: int = field(default_factory=lambda: _env_int("N_THREADS", 4))
+    max_tokens: int = field(default_factory=lambda: _env_int("VLM_MAX_TOKENS", 2048))
+    temperature: float = 0.1  # transcription must be faithful, not creative
+
+    @property
+    def model_path(self) -> Path:
+        return MODEL_DIR / self.model_filename
+
+    @property
+    def mmproj_path(self) -> Path:
+        return MODEL_DIR / self.mmproj_filename
+
+
+@dataclass
 class RAGConfig:
     """Chunking + retrieval parameters for document Q&A."""
 
@@ -92,11 +123,34 @@ class RAGConfig:
     index_dir: Path = DATA_DIR / "index"
 
 
+def _detect_tesseract() -> str:
+    """Return a usable tesseract command/path.
+
+    Honors ``ADTC_TESSERACT_CMD``; otherwise tries the bare name (PATH) and the
+    standard Windows install location so the app works without PATH changes.
+    """
+    explicit = os.environ.get("ADTC_TESSERACT_CMD")
+    if explicit:
+        return explicit
+    candidates = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for c in candidates:
+        if Path(c).exists():
+            return c
+    return "tesseract"  # assume on PATH (Linux/macOS default)
+
+
 @dataclass
 class OCRConfig:
     """OCR pipeline settings. Math/formula OCR is optional ("added advantage")."""
 
+    # Digitize engine: "vlm" (vision model, best for handwriting) or "tesseract"
+    # (printed text only). "auto" uses the VLM when its weights are present.
+    engine: str = field(default_factory=lambda: _env("OCR_ENGINE", "auto"))
     tesseract_lang: str = field(default_factory=lambda: _env("OCR_LANG", "eng"))
+    tesseract_cmd: str = field(default_factory=_detect_tesseract)
     enable_formula_ocr: bool = field(default_factory=lambda: _env("ENABLE_FORMULA_OCR", "1") == "1")
     dpi: int = 300
 
@@ -107,6 +161,7 @@ class AppConfig:
 
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
+    vision: VisionConfig = field(default_factory=VisionConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     ocr: OCRConfig = field(default_factory=OCRConfig)
 

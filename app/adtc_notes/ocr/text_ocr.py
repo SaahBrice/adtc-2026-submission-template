@@ -34,6 +34,9 @@ def ocr_text(image, cfg: OCRConfig | None = None) -> str:
             "pytesseract not installed: pip install pytesseract\n"
             "Also install the tesseract binary (see app/README.md)."
         ) from exc
+    # Point pytesseract at the configured/auto-detected binary (Windows isn't on PATH).
+    if cfg.tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = cfg.tesseract_cmd
     try:
         return pytesseract.image_to_string(image, lang=cfg.tesseract_lang).strip()
     except pytesseract.TesseractNotFoundError as exc:  # type: ignore[attr-defined]

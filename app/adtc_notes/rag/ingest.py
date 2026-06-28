@@ -40,10 +40,11 @@ def load_text(path: str | Path) -> str:
     if suffix == ".docx":
         return _load_docx(path)
     if suffix in IMAGE_SUFFIXES:
-        # Images become text via OCR (imported here to avoid a hard dependency cycle).
-        from ..ocr.pipeline import ocr_image_to_text
+        # Images become text via the best available engine (VLM if present, else
+        # Tesseract). Imported here to avoid a hard dependency cycle.
+        from ..ocr.pipeline import image_to_markdown
 
-        return ocr_image_to_text(path)
+        return image_to_markdown(path)
     raise UnsupportedFileError(f"Unsupported file type: {suffix} ({path.name})")
 
 

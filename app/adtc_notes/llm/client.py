@@ -101,17 +101,17 @@ class LLMClient:
         return self.chat([{"role": "user", "content": prompt}], **kwargs)  # type: ignore[return-value]
 
 
-_LLM: LLMClient | None = None
-
-
 def get_llm(cfg: AppConfig | None = None) -> LLMClient:
-    """Return a process-wide singleton ``LLMClient`` (loads weights once).
+    """Return the active chat ``LLMClient``, loading it if needed.
 
-    A plain module global rather than ``lru_cache`` because the config is a
-    mutable dataclass (unhashable). First call wins; later ``cfg`` args are ignored.
+    Managed by ``adtc_notes._models`` so loading the chat model evicts the heavy
+    vision model first (they must not be co-resident on an 8 GB machine). The
+    tiny embedder is allowed to stay loaded for RAG.
     """
-    global _LLM
-    if _LLM is None:
-        cfg = cfg or CONFIG
-        _LLM = LLMClient(cfg.llm)
-    return _LLM
+    from .. import _models
+
+    existing = _models.get("llm")
+    if existing is not None:
+        return existing
+    cfg = cfg or CONFIG
+    return _models.register("llm", LLMClient(cfg.llm), evict=("vision",))

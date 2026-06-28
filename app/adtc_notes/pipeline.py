@@ -61,15 +61,24 @@ def digitize_to_document(
     cfg = cfg or CONFIG
     cfg.ensure_dirs()
 
-    ocr = digitize_image(image_path, cfg.ocr)
-    raw_draft = _assemble_raw_draft(ocr.text, ocr.latex)
+    from .ocr.pipeline import resolve_engine
 
-    # LLM turns the noisy OCR draft into clean, structured Markdown.
-    llm = get_llm(cfg)
-    markdown = llm.chat(prompts.format_document_messages(raw_draft))
+    warnings: list[str] = []
+    if resolve_engine(cfg) == "vlm":
+        # Vision model reads the page straight into clean Markdown (best for
+        # handwriting + formulas) — no separate OCR/format steps needed.
+        from .ocr.vlm import get_vision
+
+        markdown = get_vision(cfg.vision).transcribe(image_path)
+    else:
+        # Fallback: Tesseract OCR draft, then the chat LLM cleans/structures it.
+        ocr = digitize_image(image_path, cfg.ocr)
+        warnings = ocr.warnings
+        raw_draft = _assemble_raw_draft(ocr.text, ocr.latex)
+        markdown = get_llm(cfg).chat(prompts.format_document_messages(raw_draft))
 
     from .config import OUTPUT_DIR
 
     base = out_name or Path(image_path).stem
     output_path = render_document(markdown, OUTPUT_DIR / base, fmt=fmt)
-    return DigitizeResult(markdown=markdown, output_path=output_path, warnings=ocr.warnings)
+    return DigitizeResult(markdown=markdown, output_path=output_path, warnings=warnings)
