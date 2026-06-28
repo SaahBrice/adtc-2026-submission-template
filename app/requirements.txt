@@ -20,3 +20,8 @@ matplotlib>=3.7
 
 # --- PDF output fallback (used only when Pandoc is not installed) ---
 fpdf2>=2.7
+
+# --- Offline web UI ---
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9      # required by FastAPI for file uploads

@@ -60,6 +60,14 @@ def _cmd_info(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from .web.server import serve
+
+    print(f"serving offline UI at http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    serve(host=args.host, port=args.port)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct the top-level argument parser."""
     parser = argparse.ArgumentParser(prog="adtc_notes", description=__doc__)
@@ -81,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_info = sub.add_parser("info", help="show config and model status")
     p_info.set_defaults(func=_cmd_info)
+
+    p_serve = sub.add_parser("serve", help="launch the offline web UI")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.set_defaults(func=_cmd_serve)
     return parser
 
 

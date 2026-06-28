@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>adtc_notes — Offline Document Assistant</title>
+<!-- Fully offline: all CSS/JS is inline, no external requests. -->
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --ink:#e7e9ee; --mut:#9aa3b2; --acc:#4f9cf9; --ok:#3fb950; --bad:#f85149; --line:#262b34; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:14px; }
+  header h1 { font-size:18px; margin:0; }
+  header .tag { color:var(--mut); font-size:13px; }
+  #status { margin-left:auto; font-size:13px; color:var(--mut); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; background:var(--bad); }
+  .dot.on { background:var(--ok); }
+  main { max-width:920px; margin:0 auto; padding:24px; }
+  .tabs { display:flex; gap:8px; margin-bottom:18px; }
+  .tabs button { background:var(--card); color:var(--ink); border:1px solid var(--line); padding:9px 16px; border-radius:8px; cursor:pointer; }
+  .tabs button.active { border-color:var(--acc); color:var(--acc); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:18px; }
+  .card h2 { margin:0 0 6px; font-size:16px; }
+  .card p.hint { margin:0 0 16px; color:var(--mut); font-size:13px; }
+  label { font-size:13px; color:var(--mut); display:block; margin:10px 0 4px; }
+  input[type=file], select, input[type=text], textarea {
+    width:100%; background:#0e1117; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; }
+  textarea { min-height:80px; resize:vertical; }
+  .row { display:flex; gap:12px; align-items:flex-end; }
+  .row > * { flex:1; }
+  button.go { background:var(--acc); color:#06101f; border:none; border-radius:8px; padding:11px 18px; font-weight:600; cursor:pointer; }
+  button.go:disabled { opacity:.5; cursor:not-allowed; }
+  .out { margin-top:16px; }
+  pre { background:#0e1117; border:1px solid var(--line); border-radius:8px; padding:14px; overflow:auto; white-space:pre-wrap; max-height:340px; }
+  .warn { color:#d29922; font-size:13px; }
+  .err { color:var(--bad); }
+  a.dl { color:var(--acc); }
+  .src { color:var(--mut); font-size:13px; margin-top:8px; }
+  .hidden { display:none; }
+  .spin { color:var(--mut); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>adtc_notes</h1>
+  <span class="tag">offline document assistant · Corporate / Enterprise</span>
+  <span id="status"><span class="dot" id="dotLLM"></span>LLM <span class="dot" id="dotEmb"></span>Embeddings · <span id="chunks">0</span> chunks</span>
+</header>
+
+<main>
+  <div class="tabs">
+    <button id="tabDig" class="active" onclick="show('dig')">📷 Digitize</button>
+    <button id="tabAsk" onclick="show('ask')">💬 Documents &amp; Ask</button>
+  </div>
+
+  <!-- DIGITIZE -->
+  <section id="dig">
+    <div class="card">
+      <h2>Digitize a document</h2>
+      <p class="hint">Upload a photo or scan. The AI cleans it up and produces a downloadable file.</p>
+      <div class="row">
+        <div>
+          <label>Image file</label>
+          <input type="file" id="digFile" accept="image/*" />
+        </div>
+        <div style="flex:0 0 140px">
+          <label>Format</label>
+          <select id="digFmt"><option value="md">Markdown</option><option value="docx">Word (.docx)</option><option value="pdf">PDF</option></select>
+        </div>
+        <div style="flex:0 0 auto"><button class="go" id="digBtn" onclick="digitize()">Digitize</button></div>
+      </div>
+      <div class="out" id="digOut"></div>
+    </div>
+  </section>
+
+  <!-- ASK -->
+  <section id="ask" class="hidden">
+    <div class="card">
+      <h2>Build your document library</h2>
+      <p class="hint">Add PDFs, Word files, text, or images. They are indexed locally for Q&amp;A.</p>
+      <div class="row">
+        <div><label>Documents</label><input type="file" id="docFiles" multiple /></div>
+        <div style="flex:0 0 auto"><button class="go" id="addBtn" onclick="addDocs()">Add to library</button></div>
+      </div>
+      <div class="out" id="addOut"></div>
+    </div>
+    <div class="card">
+      <h2>Ask a question</h2>
+      <p class="hint">Answers are grounded in your indexed documents, with sources.</p>
+      <textarea id="q" placeholder="e.g. What were the Q3 action items and who owns them?"></textarea>
+      <div style="margin-top:10px"><button class="go" id="askBtn" onclick="ask()">Ask</button></div>
+      <div class="out" id="askOut"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+function show(which){
+  document.getElementById('dig').classList.toggle('hidden', which!=='dig');
+  document.getElementById('ask').classList.toggle('hidden', which!=='ask');
+  document.getElementById('tabDig').classList.toggle('active', which==='dig');
+  document.getElementById('tabAsk').classList.toggle('active', which==='ask');
+}
+async function refreshStatus(){
+  try{
+    const s = await (await fetch('/api/status')).json();
+    document.getElementById('dotLLM').classList.toggle('on', s.llm_present);
+    document.getElementById('dotEmb').classList.toggle('on', s.embed_present);
+    document.getElementById('chunks').textContent = s.indexed_chunks;
+  }catch(e){}
+}
+function busy(btn, on){ btn.disabled = on; }
+
+async function digitize(){
+  const f = document.getElementById('digFile').files[0];
+  const out = document.getElementById('digOut');
+  if(!f){ out.innerHTML = '<span class="err">Choose an image first.</span>'; return; }
+  const btn = document.getElementById('digBtn'); busy(btn,true);
+  out.innerHTML = '<span class="spin">Processing… (first run loads the model, please wait)</span>';
+  const fd = new FormData(); fd.append('file', f); fd.append('fmt', document.getElementById('digFmt').value);
+  try{
+    const r = await fetch('/api/digitize', {method:'POST', body:fd});
+    const j = await r.json();
+    if(j.error){ out.innerHTML = '<span class="err">'+j.error+'</span>'; }
+    else {
+      let html = '<a class="dl" href="'+j.download+'">⬇ Download formatted document</a>';
+      if(j.warnings && j.warnings.length) html += '<div class="warn">⚠ '+j.warnings.join('<br>⚠ ')+'</div>';
+      html += '<div class="out"><label>Preview</label><pre>'+escapeHtml(j.markdown)+'</pre></div>';
+      out.innerHTML = html;
+    }
+  }catch(e){ out.innerHTML = '<span class="err">'+e+'</span>'; }
+  busy(btn,false); refreshStatus();
+}
+
+async function addDocs(){
+  const files = document.getElementById('docFiles').files;
+  const out = document.getElementById('addOut');
+  if(!files.length){ out.innerHTML = '<span class="err">Choose at least one file.</span>'; return; }
+  const btn = document.getElementById('addBtn'); busy(btn,true);
+  out.innerHTML = '<span class="spin">Indexing…</span>';
+  const fd = new FormData(); for(const f of files) fd.append('files', f);
+  try{
+    const j = await (await fetch('/api/documents', {method:'POST', body:fd})).json();
+    out.innerHTML = j.error ? '<span class="err">'+j.error+'</span>'
+                            : '<span style="color:var(--ok)">✓ Added '+j.added+' chunk(s). Library now holds '+j.indexed_chunks+'.</span>';
+  }catch(e){ out.innerHTML = '<span class="err">'+e+'</span>'; }
+  busy(btn,false); refreshStatus();
+}
+
+async function ask(){
+  const q = document.getElementById('q').value.trim();
+  const out = document.getElementById('askOut');
+  if(!q){ out.innerHTML = '<span class="err">Type a question.</span>'; return; }
+  const btn = document.getElementById('askBtn'); busy(btn,true);
+  out.innerHTML = '<span class="spin">Thinking…</span>';
+  try{
+    const j = await (await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})})).json();
+    if(j.error){ out.innerHTML = '<span class="err">'+j.error+'</span>'; }
+    else {
+      let html = '<pre>'+escapeHtml(j.answer)+'</pre>';
+      if(j.sources && j.sources.length) html += '<div class="src">Sources: '+j.sources.join(', ')+'</div>';
+      out.innerHTML = html;
+    }
+  }catch(e){ out.innerHTML = '<span class="err">'+e+'</span>'; }
+  busy(btn,false);
+}
+
+function escapeHtml(s){ return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+refreshStatus();
+</script>
+</body>
+</html>
