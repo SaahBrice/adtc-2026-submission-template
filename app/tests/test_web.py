@@ -13,7 +13,7 @@ pytestmark = pytest.mark.skipif(
 def _client():
     from fastapi.testclient import TestClient
 
-    from adtc_notes.web.server import create_app
+    from docaware.web.server import create_app
 
     return TestClient(create_app())
 
@@ -21,7 +21,7 @@ def _client():
 @pytest.fixture
 def isolated_sessions(tmp_path, monkeypatch):
     """Point session storage at a temp dir so tests don't touch real chats."""
-    from adtc_notes.config import CONFIG
+    from docaware.config import CONFIG
 
     monkeypatch.setattr(CONFIG.rag, "sessions_dir", tmp_path / "sessions")
     return tmp_path
@@ -30,7 +30,7 @@ def isolated_sessions(tmp_path, monkeypatch):
 def test_index_page_served():
     resp = _client().get("/")
     assert resp.status_code == 200
-    assert "adtc_notes" in resp.text
+    assert "Docaware" in resp.text
 
 
 def test_status_reports_model_presence():

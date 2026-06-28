@@ -1,4 +1,4 @@
-"""Tests for adtc_notes.render (Markdown/DOCX + formula images).
+"""Tests for docaware.render (Markdown/DOCX + formula images).
 
 Skips backends that are not installed so the suite stays green on minimal envs.
 """
@@ -7,7 +7,7 @@ import importlib.util
 
 import pytest
 
-from adtc_notes.render import render_document
+from docaware.render import render_document
 
 MD = """# Title
 
@@ -43,7 +43,7 @@ def test_docx_render_with_formula(tmp_path):
 
 @pytest.mark.skipif(importlib.util.find_spec("matplotlib") is None, reason="matplotlib required")
 def test_formula_image(tmp_path):
-    from adtc_notes.render.formula_img import render_latex_png
+    from docaware.render.formula_img import render_latex_png
 
     out = render_latex_png(r"\frac{a}{b}", tmp_path / "f.png")
     assert out.exists()

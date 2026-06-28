@@ -1,6 +1,6 @@
-# ADTC 2026 — adtc_notes (Corporate / Enterprise)
+# ADTC 2026 — Docaware (Corporate / Enterprise)
 
-> **Our submission:** *adtc_notes* — a fully **offline, CPU-only** document
+> **Our submission:** *Docaware* — a fully **offline, CPU-only** document
 > assistant for African SMEs. Digitize photographed/scanned paperwork into clean,
 > downloadable documents, and ask grounded questions across a local document
 > library — all on an 8 GB laptop with no internet.

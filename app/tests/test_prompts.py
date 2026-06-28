@@ -1,6 +1,6 @@
-"""Tests for adtc_notes.llm.prompts (pure functions)."""
+"""Tests for docaware.llm.prompts (pure functions)."""
 
-from adtc_notes.llm import prompts
+from docaware.llm import prompts
 
 
 def test_format_document_messages_structure():

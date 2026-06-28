@@ -1,4 +1,4 @@
-# adtc_notes — Offline Document Intelligence (ADTC 2026, Corporate/Enterprise)
+# Docaware — Offline Document Intelligence (ADTC 2026, Corporate/Enterprise)
 
 A fully **offline**, **CPU-only** document assistant for the ADTC Standard Laptop
 (4 vCPU, 8 GB RAM, integrated GPU, Ubuntu 22.04). Two capabilities, one local
@@ -11,14 +11,14 @@ GGUF model run through `llama.cpp`:
 
 > The whole AI stack (chat **and** embeddings) runs on llama.cpp — **no PyTorch**
 > in the core, to respect the 8 GB budget. The only PyTorch-dependent feature is
-> optional formula OCR (pix2tex), fully isolated in `adtc_notes/ocr/formula.py`.
+> optional formula OCR (pix2tex), fully isolated in `docaware/ocr/formula.py`.
 
 ---
 
 ## Architecture
 
 ```
-adtc_notes/
+docaware/
 ├── config.py          # all tunables (RAM/speed levers), env-overridable
 ├── errors.py          # explicit exception types
 ├── llm/               # GGUF chat model wrapper + prompt templates
@@ -85,14 +85,14 @@ pip install -r requirements-optional.txt   # pulls in PyTorch (CPU); heavier
 
 ```bash
 # Show config + whether models are present
-python -m adtc_notes info
+python -m docaware info
 
 # Digitize an image into a downloadable Word document
-python -m adtc_notes digitize path/to/photo.jpg --format docx
+python -m docaware digitize path/to/photo.jpg --format docx
 
 # Index documents, then ask questions across all of them
-python -m adtc_notes add report1.pdf notes.docx scan.png
-python -m adtc_notes ask "What were the Q3 action items?"
+python -m docaware add report1.pdf notes.docx scan.png
+python -m docaware ask "What were the Q3 action items?"
 ```
 
 Outputs are written to `app/output/`; the RAG index lives in `app/data/index/`

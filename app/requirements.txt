@@ -1,4 +1,4 @@
-# adtc_notes core runtime dependencies (offline, CPU-only).
+# docaware core runtime dependencies (offline, CPU-only).
 # Pin ranges that are known to work on Python 3.11/3.12 / Ubuntu 22.04.
 
 # --- LLM + embeddings (the whole AI stack runs on llama.cpp, no PyTorch) ---

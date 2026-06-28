@@ -1,0 +1,117 @@
+"""docaware/cli.py — Command-line interface (offline, no server needed).
+
+Subcommands:
+* ``digitize IMAGE [--format md|docx|pdf]`` — image → formatted document.
+* ``add PATH...``                            — index documents for Q&A.
+* ``ask "QUESTION"``                          — answer from the indexed corpus.
+* ``info``                                    — show config + environment status.
+
+Run as ``python -m docaware <subcommand>`` from the ``app/`` directory.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from .config import CONFIG
+from .errors import ADTCError
+
+
+def _cmd_digitize(args: argparse.Namespace) -> int:
+    from .pipeline import digitize_to_document
+
+    result = digitize_to_document(args.image, fmt=args.format)
+    print(f"wrote: {result.output_path}")
+    for w in result.warnings:
+        print(f"warning: {w}")
+    return 0
+
+
+def _cmd_add(args: argparse.Namespace) -> int:
+    from .rag import get_session
+
+    session = get_session("default", CONFIG)
+    added = session.add_documents(args.paths)
+    print(f"indexed {added} chunk(s) from {len(args.paths)} file(s)")
+    print(f"chat 'default' now holds {len(session.store)} chunk(s)")
+    return 0
+
+
+def _cmd_ask(args: argparse.Namespace) -> int:
+    from .rag import get_session
+
+    session = get_session("default", CONFIG)
+    out = session.ask(args.question, top_k=args.top_k)
+    print(out["answer"])
+    if out["sources"]:
+        print("\nSources: " + ", ".join(out["sources"]))
+    return 0
+
+
+def _cmd_info(_: argparse.Namespace) -> int:
+    import json
+
+    from .ocr.pipeline import resolve_engine
+
+    print(json.dumps(CONFIG.as_dict(), indent=2))
+    print(f"\nLLM model present:    {CONFIG.llm.model_path.exists()}  ({CONFIG.llm.model_path})")
+    print(
+        f"Embed model present:  {CONFIG.embedding.model_path.exists()}  ({CONFIG.embedding.model_path})"
+    )
+    vision_ok = CONFIG.vision.model_path.exists() and CONFIG.vision.mmproj_path.exists()
+    print(f"Vision model present: {vision_ok}  ({CONFIG.vision.model_path})")
+    print(f"Digitize engine:      {resolve_engine(CONFIG)}")
+    return 0
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from .web.server import serve
+
+    print(f"serving offline UI at http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    serve(host=args.host, port=args.port)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the top-level argument parser."""
+    parser = argparse.ArgumentParser(prog="docaware", description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_dig = sub.add_parser("digitize", help="image → formatted document")
+    p_dig.add_argument("image", help="path to an image file")
+    p_dig.add_argument("--format", choices=("md", "docx", "pdf"), default="md")
+    p_dig.set_defaults(func=_cmd_digitize)
+
+    p_add = sub.add_parser("add", help="index documents for Q&A")
+    p_add.add_argument("paths", nargs="+", help="document/image paths")
+    p_add.set_defaults(func=_cmd_add)
+
+    p_ask = sub.add_parser("ask", help="answer a question from indexed documents")
+    p_ask.add_argument("question", help="natural-language question")
+    p_ask.add_argument("--top-k", type=int, default=None)
+    p_ask.set_defaults(func=_cmd_ask)
+
+    p_info = sub.add_parser("info", help="show config and model status")
+    p_info.set_defaults(func=_cmd_info)
+
+    p_serve = sub.add_parser("serve", help="launch the offline web UI")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.set_defaults(func=_cmd_serve)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Returns a process exit code."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except ADTCError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -16,8 +16,8 @@ from pathlib import Path
 # Make the app package importable regardless of where this script is launched from.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from adtc_notes.config import CONFIG
-from adtc_notes.rag import Retriever
+from docaware.config import CONFIG
+from docaware.rag import create_session
 
 SAMPLE = Path(__file__).parent / "sample_report.md"
 
@@ -27,17 +27,18 @@ def main() -> None:
     print(f"  chat : {CONFIG.llm.model_path.exists()}  {CONFIG.llm.model_path.name}")
     print(f"  embed: {CONFIG.embedding.model_path.exists()}  {CONFIG.embedding.model_path.name}")
 
-    r = Retriever(CONFIG)
+    session = create_session()
     t0 = time.time()
-    added = r.add_documents([SAMPLE])
+    added = session.add_documents([SAMPLE])
     print(f"\nIndexed {added} chunk(s) in {time.time() - t0:.1f}s")
 
+    # Second question is a follow-up — it only resolves if conversation memory works.
     for q in [
         "What were the Q3 action items and who owns them?",
-        "What risks were raised for Q4?",
+        "When is the first one due?",
     ]:
         t0 = time.time()
-        out = r.ask(q)
+        out = session.ask(q)
         print(f"\nQ: {q}")
         print(f"A ({time.time() - t0:.1f}s): {out['answer']}")
         print(f"Sources: {', '.join(out['sources'])}")

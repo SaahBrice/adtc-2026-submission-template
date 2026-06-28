@@ -1,6 +1,6 @@
-"""Tests for adtc_notes.rag.chunk (pure, no heavy deps)."""
+"""Tests for docaware.rag.chunk (pure, no heavy deps)."""
 
-from adtc_notes.rag.chunk import chunk_text
+from docaware.rag.chunk import chunk_text
 
 
 def test_empty_input_returns_no_chunks():

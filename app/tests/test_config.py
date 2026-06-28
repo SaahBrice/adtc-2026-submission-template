@@ -1,8 +1,8 @@
-"""Tests for adtc_notes.config (paths, env overrides, serialization)."""
+"""Tests for docaware.config (paths, env overrides, serialization)."""
 
 import importlib
 
-import adtc_notes.config as config_mod
+import docaware.config as config_mod
 
 
 def test_config_paths_are_under_repo():

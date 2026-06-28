@@ -1,7 +1,7 @@
-"""Tests for adtc_notes.rag.store.VectorStore (NumPy cosine index)."""
+"""Tests for docaware.rag.store.VectorStore (NumPy cosine index)."""
 
-from adtc_notes.rag.chunk import Chunk
-from adtc_notes.rag.store import VectorStore
+from docaware.rag.chunk import Chunk
+from docaware.rag.store import VectorStore
 
 
 def _chunk(txt: str, i: int) -> Chunk:

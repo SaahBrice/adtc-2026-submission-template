@@ -12,7 +12,7 @@
   "cross_disciplinary_pairing": {
     "discipline": "enterprise_productivity",
     "load_bearing": true,
-    "description": "An offline document assistant for African SMEs: digitize photographed/scanned paperwork into clean, downloadable documents, and ask grounded questions across a local library of reports, contracts, and notes — entirely on a low-cost 8 GB laptop with no internet."
+    "description": "Docaware — an offline document assistant for African SMEs: digitize photographed/scanned paperwork into clean, downloadable documents, and hold a memory-aware conversation that answers questions across a local library of reports, contracts, and notes with page-level citations — entirely on a low-cost 8 GB laptop with no internet."
   },
   "test_prompts": [
     {

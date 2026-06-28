@@ -1,4 +1,4 @@
-# Technical Report — adtc_notes: Offline Document Intelligence for African SMEs
+# Technical Report — Docaware: Offline Document Intelligence for African SMEs
 
 **Team ID:** TODO-REGISTER-ON-ADTF-PORTAL  
 **Domain:** corporate_enterprise  
@@ -19,7 +19,7 @@ administrator in Arusha) typically work on **low-cost 8 GB laptops with unreliab
 internet and electricity**. Cloud AI tools are blocked by API fees, connectivity,
 and data-privacy concerns over sensitive business records.
 
-**adtc_notes** is a fully **offline** assistant that does two things on commodity
+**Docaware** is a fully **offline** assistant that does two things on commodity
 hardware:
 
 1. **Digitize** — turn a photo/scan of a document into a clean, **downloadable**

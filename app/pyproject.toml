@@ -1,4 +1,4 @@
-# Tooling config for the adtc_notes app (dev-time only; no runtime impact).
+# Tooling config for the docaware app (dev-time only; no runtime impact).
 
 [tool.black]
 line-length = 100
