@@ -91,7 +91,7 @@ class VisionModel:
 
     def transcribe(self, image_path: str | Path) -> str:
         """Transcribe one image into clean Markdown (with LaTeX for formulas)."""
-        uri = _image_data_uri(image_path)
+        uri = _image_data_uri(image_path, max_side=self.cfg.max_image_side)
         messages = [
             {
                 "role": "user",

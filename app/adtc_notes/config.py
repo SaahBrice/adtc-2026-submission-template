@@ -100,7 +100,13 @@ class VisionConfig:
     )
     # Vision tokens are many; a larger context is needed than for plain chat.
     n_ctx: int = field(default_factory=lambda: _env_int("VLM_N_CTX", 8192))
-    n_threads: int = field(default_factory=lambda: _env_int("N_THREADS", 4))
+    # The CLIP image encoder dominates latency on CPU; use all available cores
+    # for the (app-side, non-benchmarked) vision pass to keep digitize responsive.
+    n_threads: int = field(default_factory=lambda: _env_int("VLM_THREADS", os.cpu_count() or 4))
+    # Longest image edge in px. CLIP cost grows ~quadratically with this, so it is
+    # the main speed lever. 1280 preserves transcription accuracy on dense handwriting;
+    # lower it (e.g. ADTC_... VLM_MAX_SIDE=1024) to trade some accuracy for speed.
+    max_image_side: int = field(default_factory=lambda: _env_int("VLM_MAX_SIDE", 1280))
     max_tokens: int = field(default_factory=lambda: _env_int("VLM_MAX_TOKENS", 2048))
     temperature: float = 0.1  # transcription must be faithful, not creative
 

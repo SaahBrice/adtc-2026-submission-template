@@ -45,7 +45,8 @@ pip install -r requirements.txt
 
 ### 2. System dependencies (offline tools)
 
-- **Tesseract OCR** (text recognition):
+- **Tesseract OCR** (optional — printed-text fallback only; the default digitize
+  engine is the vision model below):
   - Ubuntu: `sudo apt install tesseract-ocr`
   - Windows: `winget install UB-Mannheim.TesseractOCR`
 - **Pandoc + LaTeX** (best-quality PDF; optional — app falls back to fpdf2):
@@ -59,11 +60,20 @@ From the **repo root** (one level up):
 bash download_model.sh
 ```
 
-This fetches the GGUF chat model and the small GGUF embedding model into `model/`.
-The chat model is ~2.2 GB — if your connection is slow, run the script yourself and
-let it finish before using the app. (See repo-root README for details.)
+This fetches all GGUF weights into `model/` (~5.7 GB total):
+- **chat model** (~2.4 GB) — the ADTC-benchmarked text model (RAG Q&A)
+- **embedding model** (~25 MB) — local RAG embeddings
+- **vision model + mmproj** (~3.3 GB) — Qwen2.5-VL for digitizing handwriting/images
 
-### 4. (Optional) Formula OCR — the "added advantage"
+If your connection is slow, run the script yourself and let it finish first. The
+heavy models are never co-resident: the vision model loads alone at digitize time
+and the chat model loads for Q&A, so peak RAM stays within the 8 GB budget.
+
+Digitize engine selection: `ADTC_OCR_ENGINE=auto|vlm|tesseract` (default `auto` —
+uses the vision model when present). Tune VLM speed/accuracy with `ADTC_VLM_MAX_SIDE`
+(default 1280).
+
+### 4. (Optional) pix2tex formula OCR
 
 ```bash
 pip install -r requirements-optional.txt   # pulls in PyTorch (CPU); heavier

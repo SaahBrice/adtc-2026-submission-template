@@ -50,9 +50,13 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 - **Document rendering:** Markdown always; DOCX via `python-docx`; PDF via Pandoc
   if present, else an `fpdf2` fallback. Formulas render to images with matplotlib
   **mathtext** — no system TeX install required.
-- **OCR:** Tesseract (lightest reliable CPU engine). Optional handwritten/printed
-  **formula → LaTeX** via pix2tex is fully isolated (it pulls PyTorch), so it is an
-  opt-in "added advantage", not a core dependency.
+- **Digitize / OCR:** the primary engine is **Qwen2.5-VL-3B** (GGUF + mmproj) run
+  through llama.cpp — a vision-language model that reads handwriting, layout, and
+  math directly into clean Markdown with LaTeX. Tesseract was evaluated and rejected
+  for handwriting (unusable on cursive); it remains a fast fallback for printed text.
+  The VLM is app-side only (not the ADTC-benchmarked model) and is loaded alone at
+  digitize time via a single-active-model manager so peak RAM stays within 8 GB.
+  Resolution is the main latency lever (`VLM_MAX_SIDE`, default 1280 for accuracy).
 
 ### Alternatives considered
 
