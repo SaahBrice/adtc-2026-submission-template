@@ -45,7 +45,14 @@ class ChatSession:
         self.store = VectorStore.load(self.dir / "index")
         self.meta = self._load_json(
             "meta.json",
-            {"id": session_id, "title": "New chat", "created": time.time(), "documents": []},
+            {
+                "id": session_id,
+                "title": "New chat",
+                "created": time.time(),
+                "documents": [],
+                "summary": "",  # running summary of older turns (long-chat memory)
+                "summarized_upto": 0,  # history index already folded into summary
+            },
         )
         self.history: list[dict[str, str]] = self._load_json("history.json", [])
 
@@ -112,6 +119,13 @@ class ChatSession:
         self.save()
         return added
 
+    def remove_document(self, name: str) -> int:
+        """Remove a document and its chunks from this chat. Returns chunks removed."""
+        removed = self.store.remove_source(name)
+        self.meta["documents"] = [d for d in self.meta.get("documents", []) if d != name]
+        self.save()
+        return removed
+
     # --- conversational QA ---------------------------------------------------
 
     @staticmethod
@@ -119,44 +133,72 @@ class ChatSession:
         page = chunk.metadata.get("page")
         return f"{chunk.source} p.{page}" if page else chunk.source
 
-    def _retrieval_query(self, question: str, history: list[dict[str, str]]) -> str:
+    def _retrieval_query(self, question, history, summary):
         """History-aware query: rewrite a follow-up into a standalone question."""
-        if not history:
+        if not history and not summary:
             return question
         rewritten = get_llm(self.cfg).chat(
-            prompts.condense_question_messages(question, history), max_tokens=96
+            prompts.condense_question_messages(question, history, summary), max_tokens=96
         )
         return (rewritten or question).strip() or question
 
     _NO_DOCS = "No documents in this chat yet — add some first."
 
     def _prepare(self, question: str, top_k: int | None = None):
-        """Run history-aware retrieval. Returns ``(history, labeled, sources)`` or None."""
-        history = self.history[-self.cfg.rag.max_history_messages :]
+        """History-aware retrieval. Returns ``(window, labeled, sources, summary)`` or None.
+
+        ``window`` is the recent raw turns; ``summary`` is the running summary of older
+        turns (long-chat memory). Both feed the condense step and the answer prompt.
+        """
         if len(self.store) == 0:
             return None
-        query = self._retrieval_query(question, history)
+        window = self.history[-self.cfg.rag.max_history_messages :]
+        summary = self.meta.get("summary") or None
+        query = self._retrieval_query(question, window, summary)
         embedder = get_embedder(self.cfg.embedding)
         results = self.store.search(embedder.embed_one(query), top_k or self.cfg.rag.top_k)
         labeled = [(self._label(c), c.text) for c, _ in results]
         sources = list(dict.fromkeys(label for label, _ in labeled))  # unique, ordered
-        return history, labeled, sources
+        return window, labeled, sources, summary
 
     def _commit(self, question: str, answer: str) -> None:
-        """Persist a completed turn to history (and name the chat on first turn)."""
+        """Persist a completed turn; fold older turns into the running summary."""
         self.history.append({"role": "user", "content": question})
         self.history.append({"role": "assistant", "content": answer})
         if self.meta.get("title") == "New chat":
             self.meta["title"] = question[:48]
+        self._maybe_summarize()
         self.save()
+
+    def _maybe_summarize(self) -> None:
+        """Fold turns older than the recent window into a compact running summary.
+
+        Keeps LLM context bounded (summary + recent window) while remembering an
+        arbitrarily long chat — the summary-buffer pattern.
+        """
+        window = self.cfg.rag.max_history_messages
+        start = self.meta.get("summarized_upto", 0)
+        end = len(self.history) - window  # messages older than the window
+        if end - start < 4:  # only summarize in batches to limit LLM calls
+            return
+        older = self.history[start:end]
+        self.meta["summary"] = (
+            get_llm(self.cfg)
+            .chat(
+                prompts.update_summary_messages(self.meta.get("summary", ""), older),
+                max_tokens=320,
+            )
+            .strip()
+        )
+        self.meta["summarized_upto"] = end
 
     def ask(self, question: str, top_k: int | None = None) -> dict:
         """Answer a question (non-streaming). Returns ``{answer, sources, contexts}``."""
         prep = self._prepare(question, top_k)
         if prep is None:
             return {"answer": self._NO_DOCS, "sources": [], "contexts": []}
-        history, labeled, sources = prep
-        answer = get_llm(self.cfg).chat(prompts.qa_messages(question, labeled, history))
+        window, labeled, sources, summary = prep
+        answer = get_llm(self.cfg).chat(prompts.qa_messages(question, labeled, window, summary))
         self._commit(question, answer)
         return {"answer": answer, "sources": sources, "contexts": [t for _, t in labeled]}
 
@@ -171,20 +213,22 @@ class ChatSession:
             yield ("meta", [])
             yield ("delta", self._NO_DOCS)
             return
-        history, labeled, sources = prep
+        window, labeled, sources, summary = prep
         yield ("meta", sources)
         pieces: list[str] = []
         for piece in get_llm(self.cfg).chat(
-            prompts.qa_messages(question, labeled, history), stream=True
+            prompts.qa_messages(question, labeled, window, summary), stream=True
         ):
             pieces.append(piece)
             yield ("delta", piece)
         self._commit(question, "".join(pieces))
 
     def reset(self) -> None:
-        """Clear this chat's conversation history (keeps its documents/index)."""
+        """Clear this chat's conversation history + summary (keeps documents/index)."""
         self.history = []
-        self._save_json("history.json", self.history)
+        self.meta["summary"] = ""
+        self.meta["summarized_upto"] = 0
+        self.save()
 
 
 # --- session management ------------------------------------------------------

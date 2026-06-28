@@ -50,6 +50,17 @@ class VectorStore:
         self._vectors = np.vstack([self._vectors, mat]) if len(self) else mat
         self._chunks.extend(chunks)
 
+    def remove_source(self, source: str) -> int:
+        """Drop all chunks (and their vectors) from a given document. Returns count removed."""
+        keep = [i for i, c in enumerate(self._chunks) if c.source != source]
+        removed = len(self._chunks) - len(keep)
+        if removed:
+            self._vectors = (
+                self._vectors[keep] if keep else np.empty((0, self.dim), dtype=np.float32)
+            )
+            self._chunks = [self._chunks[i] for i in keep]
+        return removed
+
     def search(self, query_vector: list[float], top_k: int = 4) -> list[tuple[Chunk, float]]:
         """Return the ``top_k`` most similar chunks to a query vector.
 

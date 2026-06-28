@@ -51,6 +51,13 @@
   .panel { flex:1; min-width:0; display:flex; flex-direction:column; }
   .chatwrap { flex:1; min-height:0; display:flex; flex-direction:column; max-width:820px; width:100%; margin:0 auto; padding:16px 20px; gap:12px; }
   .libbar { display:flex; gap:10px; align-items:center; }
+  .doclist { display:flex; flex-wrap:wrap; gap:6px; }
+  .doclist:empty { display:none; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 8px 4px 10px; background:var(--surface); border:1px solid var(--border); border-radius:999px; font-size:12px; color:var(--fg-2); }
+  .chip .x { display:inline-flex; cursor:pointer; color:var(--fg-3); border-radius:50%; }
+  .chip .x:hover { color:var(--danger); }
+  .chip.removing { opacity:.5; pointer-events:none; }
+  .chip .icon { width:13px; height:13px; }
   .grow { flex:1; min-width:0; }
   input[type=file], select, textarea { background:var(--inset); color:var(--fg); border:1px solid var(--border); border-radius:var(--r-sm); padding:9px 11px; font:inherit; }
   input[type=file]::file-selector-button { background:var(--surface-2); color:var(--fg-2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; margin-right:10px; font:inherit; cursor:pointer; }
@@ -101,6 +108,7 @@
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></symbol>
   <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></symbol>
   <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
 </svg>
 
@@ -130,6 +138,7 @@
         <input type="file" id="docFiles" class="grow" multiple />
         <button class="btn ghost" id="addBtn" onclick="addDocs()"><svg class="icon"><use href="#i-plus"/></svg>Add documents</button>
       </div>
+      <div class="doclist" id="docList"></div>
       <div class="transcript" id="transcript"></div>
       <div class="composer">
         <textarea id="q" rows="1" placeholder="Ask about this chat's documents…"></textarea>
@@ -202,15 +211,33 @@ async function selectSession(id){
   SID=id;
   document.querySelectorAll('.sess').forEach(e=>e.classList.toggle('active', e.dataset.id===id));
   const data=await (await fetch(`/api/sessions/${id}`)).json();
+  renderDocs(data.documents||[]);
   const t=document.getElementById('transcript'); t.innerHTML='';
   if(!(data.history||[]).length){
-    t.innerHTML=`<div class="empty">${data.documents&&data.documents.length?'Ask about: '+data.documents.map(esc).join(', '):'Add documents, then ask. This chat remembers the conversation and cites the document and page.'}</div>`;
+    t.innerHTML=`<div class="empty">Add documents, then ask. This chat keeps the whole conversation in memory and cites the document and page.</div>`;
   } else {
     for(let i=0;i<data.history.length;i++){
       const m=data.history[i];
       addMsg(m.role==='user'?'user':'ai', m.role==='user'?esc(m.content):`<div class="rich">${renderRich(m.content)}</div>`);
     }
   }
+}
+function renderDocs(docs){
+  const box=document.getElementById('docList'); box.innerHTML='';
+  for(const name of docs){
+    const c=document.createElement('span'); c.className='chip'; c.dataset.name=name;
+    c.innerHTML=`<span>${esc(name)}</span><span class="x" title="Remove" onclick="removeDoc(${JSON.stringify(name)})">${ic('i-x')}</span>`;
+    box.appendChild(c);
+  }
+}
+async function removeDoc(name){
+  if(!SID) return;
+  const chip=document.querySelector(`#docList .chip[data-name="${CSS.escape(name)}"]`);
+  if(chip) chip.classList.add('removing');
+  try{
+    const j=await (await fetch(`/api/sessions/${SID}/documents/remove`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})})).json();
+    renderDocs(j.documents||[]);
+  }catch(e){ if(chip) chip.classList.remove('removing'); }
 }
 function addMsg(role,html){
   const t=document.getElementById('transcript'); const e=t.querySelector('.empty'); if(e) e.remove();
@@ -224,7 +251,8 @@ async function addDocs(){
   const note=addMsg('ai',`<span class="spin">${ic('i-loader')}Indexing ${files.length} file(s)…</span>`);
   const fd=new FormData(); for(const f of files) fd.append('files',f);
   try{const j=await (await fetch(`/api/sessions/${SID}/documents`,{method:'POST',body:fd})).json();
-    note.innerHTML=j.error?`<span class="err">${ic('i-error')}${esc(j.error)}</span>`:`<span class="muted">Added ${j.added} chunk(s). This chat now covers: ${(j.documents||[]).map(esc).join(', ')}.</span>`;
+    if(j.error){ note.innerHTML=`<span class="err">${ic('i-error')}${esc(j.error)}</span>`; }
+    else { note.innerHTML=`<span class="muted">Added ${j.added} chunk(s) from ${files.length} file(s). Ask away.</span>`; renderDocs(j.documents||[]); }
   }catch(e){ note.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
   btn.disabled=false; document.getElementById('docFiles').value=''; loadSessions();
 }

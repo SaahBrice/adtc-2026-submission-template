@@ -43,3 +43,17 @@ def test_save_and_load_roundtrip(tmp_path):
 
 def test_load_missing_index_is_empty():
     assert len(VectorStore.load("does/not/exist")) == 0
+
+
+def test_remove_source_drops_only_that_doc():
+    store = VectorStore(dim=2)
+    store.add(
+        [Chunk("a", "doc1", 0), Chunk("b", "doc2", 0), Chunk("c", "doc1", 1)],
+        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+    )
+    removed = store.remove_source("doc1")
+    assert removed == 2
+    assert len(store) == 1
+    assert (
+        store.search([0.0, 1.0], top_k=5)[0][0].source == "doc2"
+    )  # remaining doc still searchable

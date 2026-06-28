@@ -128,6 +128,15 @@ def create_app():
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"added": added, **s.summary()})
 
+    @app.post("/api/sessions/{sid}/documents/remove")
+    def session_document_remove(sid: str, payload: dict = Body(...)):
+        from ..rag import get_session
+
+        name = (payload or {}).get("name", "")
+        s = get_session(sid, CONFIG)
+        removed = s.remove_document(name)
+        return JSONResponse({"removed": removed, **s.summary()})
+
     @app.post("/api/sessions/{sid}/ask")
     def session_ask(sid: str, payload: dict = Body(...)):
         from ..rag import get_session
