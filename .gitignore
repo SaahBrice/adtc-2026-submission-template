@@ -14,3 +14,13 @@ __pycache__/
 # Local profiler output
 submission.json
 audit.json
+
+# App working directories (generated at runtime)
+app/data/
+app/output/
+app/.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

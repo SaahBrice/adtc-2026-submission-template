@@ -1,4 +1,16 @@
-# ADTC 2026 — Submission Template
+# ADTC 2026 — adtc_notes (Corporate / Enterprise)
+
+> **Our submission:** *adtc_notes* — a fully **offline, CPU-only** document
+> assistant for African SMEs. Digitize photographed/scanned paperwork into clean,
+> downloadable documents, and ask grounded questions across a local document
+> library — all on an 8 GB laptop with no internet.
+>
+> - 📦 Application code: [`app/`](app/) · 📄 Technical report: [`REPORT.md`](REPORT.md)
+> - Domain: `corporate_enterprise` · Model: Phi-3.5-mini-instruct Q4_K_M (GGUF, llama.cpp)
+>
+> The original ADTC template instructions are preserved below.
+
+---
 
 This is the official template repository for the **Africa Deep Tech Challenge 2026** Laptop LLM track.
 

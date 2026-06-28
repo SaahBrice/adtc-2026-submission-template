@@ -1,0 +1,22 @@
+# adtc_notes core runtime dependencies (offline, CPU-only).
+# Pin ranges that are known to work on Python 3.11/3.12 / Ubuntu 22.04.
+
+# --- LLM + embeddings (the whole AI stack runs on llama.cpp, no PyTorch) ---
+llama-cpp-python>=0.3.2
+
+# --- RAG / data ---
+numpy>=1.26
+
+# --- OCR (text) ---
+pillow>=10.0
+pytesseract>=0.3.10           # requires the system `tesseract` binary (see README)
+
+# --- Document ingestion ---
+pypdf>=4.0
+python-docx>=1.1              # also used for DOCX output
+
+# --- Formula rendering to images (no system TeX required) ---
+matplotlib>=3.7
+
+# --- PDF output fallback (used only when Pandoc is not installed) ---
+fpdf2>=2.7
