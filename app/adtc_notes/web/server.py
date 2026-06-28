@@ -1,16 +1,14 @@
 """adtc_notes/web/server.py — Offline FastAPI server for the document assistant.
 
-Serves a single self-contained HTML page (no external CDNs — fully offline) and a
-small JSON API wrapping the two pipelines:
+Serves one self-contained offline page plus a small JSON API:
 
-* POST /api/digitize  — image upload → formatted, downloadable document.
-* POST /api/documents — index uploaded documents for Q&A.
-* POST /api/ask       — grounded question answering over the index.
+* /api/digitize                      — image → formatted, downloadable document.
+* /api/sessions (+ /{id}/…)          — multi-chat: each chat has its own documents,
+                                       conversation memory, and page-cited answers.
 
-Heavy backends (LLM, embedder) load lazily on first use, so the server starts
-instantly and the page is usable for status checks even before models are present.
-
-Launch with: ``python -m adtc_notes serve`` (see cli.py).
+Chats are persisted on disk (see rag/session.py), so they survive restarts and a
+request simply loads the session it needs. Heavy models load lazily and are managed
+to stay within the 8 GB budget. Launch with: ``python -m adtc_notes serve``.
 """
 
 # NOTE: deliberately NOT using ``from __future__ import annotations`` — FastAPI
@@ -23,7 +21,6 @@ from ..config import CONFIG, OUTPUT_DIR
 from ..errors import ADTCError
 
 _STATIC = Path(__file__).parent / "static"
-_UPLOADS = None  # set on app creation
 
 
 def _save_upload(upload, dest_dir: Path) -> Path:
@@ -36,13 +33,7 @@ def _save_upload(upload, dest_dir: Path) -> Path:
 
 
 def create_app():
-    """Build and return the FastAPI application.
-
-    Imported lazily so the package does not hard-depend on FastAPI/uvicorn.
-
-    Raises:
-        BackendNotInstalledError: If FastAPI is not installed.
-    """
+    """Build and return the FastAPI application (FastAPI imported lazily)."""
     try:
         from fastapi import FastAPI, UploadFile, File, Form, Body
         from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -54,23 +45,11 @@ def create_app():
             "Web UI deps not installed: pip install fastapi uvicorn python-multipart"
         ) from exc
 
-    global _UPLOADS
     CONFIG.ensure_dirs()
-    _UPLOADS = CONFIG.rag.index_dir.parent / "uploads"
-    _UPLOADS.mkdir(parents=True, exist_ok=True)
+    uploads = CONFIG.rag.sessions_dir.parent / "uploads"
+    uploads.mkdir(parents=True, exist_ok=True)
 
     app = FastAPI(title="adtc_notes", docs_url=None, redoc_url=None)
-
-    # Lazily-created retriever + in-memory chat history (this conversation only).
-    state: dict = {"retriever": None, "history": []}
-    max_turns = 6  # keep the last N user/assistant messages for follow-up context
-
-    def retriever():
-        from ..rag import Retriever
-
-        if state["retriever"] is None:
-            state["retriever"] = Retriever(CONFIG)
-        return state["retriever"]
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -80,21 +59,21 @@ def create_app():
     def status():
         from ..ocr.pipeline import resolve_engine
 
-        r = retriever()
         return {
             "llm_present": CONFIG.llm.model_path.exists(),
             "embed_present": CONFIG.embedding.model_path.exists(),
             "vision_present": CONFIG.vision.model_path.exists()
             and CONFIG.vision.mmproj_path.exists(),
             "engine": resolve_engine(CONFIG),
-            "indexed_chunks": len(r.store),
         }
+
+    # --- digitize (not chat-scoped) -----------------------------------------
 
     @app.post("/api/digitize")
     def digitize(file: UploadFile = File(...), fmt: str = Form("md")):
         from ..pipeline import digitize_to_document
 
-        src = _save_upload(file, _UPLOADS)
+        src = _save_upload(file, uploads)
         try:
             result = digitize_to_document(src, fmt=fmt)
         except ADTCError as exc:
@@ -107,40 +86,75 @@ def create_app():
             }
         )
 
-    @app.post("/api/documents")
-    def documents(files: List[UploadFile] = File(...)):
-        paths = [_save_upload(f, _UPLOADS) for f in files]
-        try:
-            added = retriever().add_documents(paths)
-        except ADTCError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({"added": added, "indexed_chunks": len(retriever().store)})
-
-    @app.post("/api/ask")
-    def ask(payload: dict = Body(...)):
-        question = (payload or {}).get("question", "").strip()
-        if not question:
-            return JSONResponse({"error": "empty question"}, status_code=400)
-        try:
-            out = retriever().ask(question, history=state["history"][-max_turns:])
-        except ADTCError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=400)
-        # Remember this turn so follow-up questions have context.
-        state["history"].append({"role": "user", "content": question})
-        state["history"].append({"role": "assistant", "content": out["answer"]})
-        return JSONResponse(out)
-
-    @app.post("/api/chat/reset")
-    def chat_reset():
-        state["history"].clear()
-        return JSONResponse({"ok": True})
-
     @app.get("/download/{name}")
     def download(name: str):
         path = OUTPUT_DIR / Path(name).name  # prevent path traversal
         if not path.exists():
             return JSONResponse({"error": "not found"}, status_code=404)
         return FileResponse(str(path), filename=path.name)
+
+    # --- chats (sessions) ----------------------------------------------------
+
+    @app.get("/api/sessions")
+    def sessions_list():
+        from ..rag import list_sessions
+
+        return JSONResponse(list_sessions(CONFIG))
+
+    @app.post("/api/sessions")
+    def sessions_create():
+        from ..rag import create_session
+
+        s = create_session(CONFIG)
+        s.save()
+        return JSONResponse(s.summary())
+
+    @app.get("/api/sessions/{sid}")
+    def session_get(sid: str):
+        from ..rag import get_session
+
+        s = get_session(sid, CONFIG)
+        return JSONResponse({**s.summary(), "history": s.history})
+
+    @app.post("/api/sessions/{sid}/documents")
+    def session_documents(sid: str, files: List[UploadFile] = File(...)):
+        from ..rag import get_session
+
+        s = get_session(sid, CONFIG)
+        paths = [_save_upload(f, uploads) for f in files]
+        try:
+            added = s.add_documents(paths)
+        except ADTCError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"added": added, **s.summary()})
+
+    @app.post("/api/sessions/{sid}/ask")
+    def session_ask(sid: str, payload: dict = Body(...)):
+        from ..rag import get_session
+
+        question = (payload or {}).get("question", "").strip()
+        if not question:
+            return JSONResponse({"error": "empty question"}, status_code=400)
+        s = get_session(sid, CONFIG)
+        try:
+            out = s.ask(question)
+        except ADTCError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({**out, "title": s.title})
+
+    @app.post("/api/sessions/{sid}/reset")
+    def session_reset(sid: str):
+        from ..rag import get_session
+
+        get_session(sid, CONFIG).reset()
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/sessions/{sid}/delete")
+    def session_delete(sid: str):
+        from ..rag import delete_session
+
+        delete_session(sid, CONFIG)
+        return JSONResponse({"ok": True})
 
     if _STATIC.exists():
         app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")

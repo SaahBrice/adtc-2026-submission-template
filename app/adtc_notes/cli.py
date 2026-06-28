@@ -29,20 +29,20 @@ def _cmd_digitize(args: argparse.Namespace) -> int:
 
 
 def _cmd_add(args: argparse.Namespace) -> int:
-    from .rag import Retriever
+    from .rag import get_session
 
-    retriever = Retriever(CONFIG)
-    added = retriever.add_documents(args.paths)
+    session = get_session("default", CONFIG)
+    added = session.add_documents(args.paths)
     print(f"indexed {added} chunk(s) from {len(args.paths)} file(s)")
-    print(f"index now holds {len(retriever.store)} chunk(s)")
+    print(f"chat 'default' now holds {len(session.store)} chunk(s)")
     return 0
 
 
 def _cmd_ask(args: argparse.Namespace) -> int:
-    from .rag import Retriever
+    from .rag import get_session
 
-    retriever = Retriever(CONFIG)
-    out = retriever.ask(args.question, top_k=args.top_k)
+    session = get_session("default", CONFIG)
+    out = session.ask(args.question, top_k=args.top_k)
     print(out["answer"])
     if out["sources"]:
         print("\nSources: " + ", ".join(out["sources"]))

@@ -1,8 +1,9 @@
-"""adtc_notes/rag/ingest.py — Load local documents into plain text.
+"""adtc_notes/rag/ingest.py — Load local documents into page-tagged text.
 
-Supports the formats an SME actually has on disk: .txt, .md, .pdf, .docx, and
-images (.png/.jpg/...) which are routed through the OCR pipeline. Each backend is
-imported lazily so missing optional deps only fail for the formats that need them.
+Returns text split by page where the format has pages (PDF), so chunks can carry
+real page numbers for citations. Supports the formats an SME has on disk: .txt,
+.md, .pdf, .docx, and images routed through the OCR pipeline. Backends are
+imported lazily so a missing optional dep only fails for the format that needs it.
 """
 
 from __future__ import annotations
@@ -14,15 +15,15 @@ from ..errors import BackendNotInstalledError, UnsupportedFileError
 TEXT_SUFFIXES = {".txt", ".md", ".markdown"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
+# A page of extracted text: (page_number_or_None, text).
+Page = tuple[int | None, str]
 
-def load_text(path: str | Path) -> str:
-    """Extract plain text from a document, dispatching on file extension.
 
-    Args:
-        path: Path to a .txt/.md/.pdf/.docx file or an image.
+def load_pages(path: str | Path) -> list[Page]:
+    """Extract text from a document as a list of ``(page_number, text)``.
 
-    Returns:
-        Extracted UTF-8 text (may be empty).
+    Page numbers are 1-based for PDFs; ``None`` for formats without stable pages
+    (text, Markdown, DOCX) and ``1`` for single images.
 
     Raises:
         UnsupportedFileError: For unknown extensions.
@@ -34,28 +35,27 @@ def load_text(path: str | Path) -> str:
     suffix = path.suffix.lower()
 
     if suffix in TEXT_SUFFIXES:
-        return path.read_text(encoding="utf-8", errors="replace")
+        return [(None, path.read_text(encoding="utf-8", errors="replace"))]
     if suffix == ".pdf":
-        return _load_pdf(path)
+        return _load_pdf_pages(path)
     if suffix == ".docx":
-        return _load_docx(path)
+        return [(None, _load_docx(path))]
     if suffix in IMAGE_SUFFIXES:
-        # Images become text via the best available engine (VLM if present, else
-        # Tesseract). Imported here to avoid a hard dependency cycle.
+        # Images become text/Markdown via the OCR engine. Lazy import avoids a cycle.
         from ..ocr.pipeline import image_to_markdown
 
-        return image_to_markdown(path)
+        return [(1, image_to_markdown(path))]
     raise UnsupportedFileError(f"Unsupported file type: {suffix} ({path.name})")
 
 
-def _load_pdf(path: Path) -> str:
-    """Extract text from a PDF using pypdf (lazy import)."""
+def _load_pdf_pages(path: Path) -> list[Page]:
+    """Extract a PDF as one ``(page_number, text)`` entry per page (pypdf)."""
     try:
         from pypdf import PdfReader  # type: ignore
     except ImportError as exc:
         raise BackendNotInstalledError("pypdf not installed: pip install pypdf") from exc
     reader = PdfReader(str(path))
-    return "\n\n".join((page.extract_text() or "") for page in reader.pages)
+    return [(i + 1, page.extract_text() or "") for i, page in enumerate(reader.pages)]
 
 
 def _load_docx(path: Path) -> str:

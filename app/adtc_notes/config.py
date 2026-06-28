@@ -126,7 +126,9 @@ class RAGConfig:
     chunk_chars: int = field(default_factory=lambda: _env_int("CHUNK_CHARS", 1200))
     chunk_overlap: int = field(default_factory=lambda: _env_int("CHUNK_OVERLAP", 200))
     top_k: int = field(default_factory=lambda: _env_int("TOP_K", 4))
-    index_dir: Path = DATA_DIR / "index"
+    # Conversation memory: how many recent messages (user+assistant) to keep in context.
+    max_history_messages: int = field(default_factory=lambda: _env_int("MAX_HISTORY", 8))
+    sessions_dir: Path = DATA_DIR / "sessions"
 
 
 def _detect_tesseract() -> str:
@@ -173,7 +175,7 @@ class AppConfig:
 
     def ensure_dirs(self) -> None:
         """Create working directories if missing (safe to call repeatedly)."""
-        for d in (DATA_DIR, OUTPUT_DIR, self.rag.index_dir):
+        for d in (DATA_DIR, OUTPUT_DIR, self.rag.sessions_dir):
             d.mkdir(parents=True, exist_ok=True)
 
     def as_dict(self) -> dict[str, Any]:

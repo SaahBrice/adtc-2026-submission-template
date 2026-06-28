@@ -36,34 +36,62 @@ def format_document_messages(raw_ocr_text: str) -> list[dict[str, str]]:
 
 _QA_SYSTEM = (
     "You are an enterprise knowledge assistant. Answer using ONLY the provided "
-    "context excerpts; if the answer isn't there, say so. Earlier turns of this "
-    "conversation are included for follow-up context. Be concise and direct. "
+    "context excerpts; if the answer isn't there, say so plainly. Earlier turns of "
+    "this conversation are included for follow-up context. Be concise and direct. "
     "Format answers in Markdown: use tables for tabular data, bullet lists where "
     "they help, and LaTeX for math ($...$ inline, $$...$$ for displayed equations). "
-    "Cite sources as [#] using the numbered excerpts."
+    "Cite every claim with the bracketed source tag shown before each excerpt, e.g. "
+    "[report.pdf p.3]. Reference the document name and page when it helps the reader."
 )
+
+# Excerpts are labelled with their real source so the model cites file + page.
+LabeledContext = tuple[str, str]  # (citation_label, text), e.g. ("report.pdf p.3", "...")
 
 
 def qa_messages(
     question: str,
-    contexts: Sequence[str],
+    contexts: Sequence[LabeledContext],
     history: Sequence[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
-    """Build chat messages for grounded Q&A, with optional conversation memory.
+    """Build chat messages for grounded Q&A with citations and conversation memory.
 
     Args:
         question: The user's natural-language question.
-        contexts: Retrieved text excerpts, most relevant first.
+        contexts: Retrieved ``(citation_label, text)`` excerpts, most relevant first.
         history: Prior ``{"role","content"}`` turns (user/assistant) for follow-ups.
 
     Returns:
         OpenAI-style message list ready for ``LLMClient.chat``.
     """
-    numbered = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(contexts))
+    numbered = "\n\n".join(f"[{label}] {text}" for label, text in contexts)
     user = f"Context excerpts:\n\n{numbered}\n\nQuestion: {question}"
     return [
         {"role": "system", "content": _QA_SYSTEM},
         *(history or []),
+        {"role": "user", "content": user},
+    ]
+
+
+_CONDENSE_SYSTEM = (
+    "Given the conversation so far and a follow-up message, rewrite the follow-up "
+    "as a standalone question that can be understood without the conversation. "
+    "Resolve pronouns and references. If it is already standalone, return it "
+    "unchanged. Output ONLY the rewritten question, nothing else."
+)
+
+
+def condense_question_messages(
+    question: str, history: Sequence[dict[str, str]]
+) -> list[dict[str, str]]:
+    """Build messages to rewrite a follow-up into a standalone retrieval query.
+
+    This is the history-aware retrieval step: the rewritten question is what we
+    embed and search with, so follow-ups like "what about Q4?" retrieve correctly.
+    """
+    convo = "\n".join(f"{m['role']}: {m['content']}" for m in history)
+    user = f"Conversation:\n{convo}\n\nFollow-up: {question}\n\nStandalone question:"
+    return [
+        {"role": "system", "content": _CONDENSE_SYSTEM},
         {"role": "user", "content": user},
     ]
 

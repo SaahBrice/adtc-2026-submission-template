@@ -18,6 +18,15 @@ def _client():
     return TestClient(create_app())
 
 
+@pytest.fixture
+def isolated_sessions(tmp_path, monkeypatch):
+    """Point session storage at a temp dir so tests don't touch real chats."""
+    from adtc_notes.config import CONFIG
+
+    monkeypatch.setattr(CONFIG.rag, "sessions_dir", tmp_path / "sessions")
+    return tmp_path
+
+
 def test_index_page_served():
     resp = _client().get("/")
     assert resp.status_code == 200
@@ -25,21 +34,31 @@ def test_index_page_served():
 
 
 def test_status_reports_model_presence():
-    resp = _client().get("/api/status")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert {"llm_present", "embed_present", "vision_present", "engine", "indexed_chunks"} <= set(
-        body
-    )
-    assert isinstance(body["indexed_chunks"], int)
+    body = _client().get("/api/status").json()
+    assert {"llm_present", "embed_present", "vision_present", "engine"} <= set(body)
     assert body["engine"] in {"vlm", "tesseract"}
 
 
-def test_ask_empty_question_rejected():
-    resp = _client().post("/api/ask", json={"question": "   "})
-    assert resp.status_code == 400
+def test_create_and_list_session(isolated_sessions):
+    c = _client()
+    created = c.post("/api/sessions").json()
+    assert created["id"] and created["title"] == "New chat"
+    listed = c.get("/api/sessions").json()
+    assert any(s["id"] == created["id"] for s in listed)
+
+
+def test_ask_empty_question_rejected(isolated_sessions):
+    c = _client()
+    sid = c.post("/api/sessions").json()["id"]
+    assert c.post(f"/api/sessions/{sid}/ask", json={"question": "  "}).status_code == 400
+
+
+def test_ask_with_no_documents_is_graceful(isolated_sessions):
+    c = _client()
+    sid = c.post("/api/sessions").json()["id"]
+    out = c.post(f"/api/sessions/{sid}/ask", json={"question": "hello?"}).json()
+    assert "No documents" in out["answer"]  # no model load needed when index is empty
 
 
 def test_download_missing_file_404():
-    resp = _client().get("/download/nope.pdf")
-    assert resp.status_code == 404
+    assert _client().get("/download/nope.pdf").status_code == 404
