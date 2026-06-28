@@ -10,8 +10,7 @@ would blow the 7 GB RAM budget. Use ``get_llm()`` rather than constructing many.
 
 from __future__ import annotations
 
-from functools import lru_cache
-from typing import Iterable, Iterator
+from typing import Iterator
 
 from ..config import CONFIG, AppConfig, LLMConfig
 from ..errors import BackendNotInstalledError, ModelNotFoundError
@@ -102,8 +101,17 @@ class LLMClient:
         return self.chat([{"role": "user", "content": prompt}], **kwargs)  # type: ignore[return-value]
 
 
-@lru_cache(maxsize=1)
+_LLM: LLMClient | None = None
+
+
 def get_llm(cfg: AppConfig | None = None) -> LLMClient:
-    """Return a process-wide singleton ``LLMClient`` (loads weights once)."""
-    cfg = cfg or CONFIG
-    return LLMClient(cfg.llm)
+    """Return a process-wide singleton ``LLMClient`` (loads weights once).
+
+    A plain module global rather than ``lru_cache`` because the config is a
+    mutable dataclass (unhashable). First call wins; later ``cfg`` args are ignored.
+    """
+    global _LLM
+    if _LLM is None:
+        cfg = cfg or CONFIG
+        _LLM = LLMClient(cfg.llm)
+    return _LLM

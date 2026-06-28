@@ -22,9 +22,9 @@ def _cmd_digitize(args: argparse.Namespace) -> int:
     from .pipeline import digitize_to_document
 
     result = digitize_to_document(args.image, fmt=args.format)
-    print(f"✅ wrote {result.output_path}")
+    print(f"wrote: {result.output_path}")
     for w in result.warnings:
-        print(f"⚠️  {w}")
+        print(f"warning: {w}")
     return 0
 
 
@@ -33,8 +33,8 @@ def _cmd_add(args: argparse.Namespace) -> int:
 
     retriever = Retriever(CONFIG)
     added = retriever.add_documents(args.paths)
-    print(f"✅ indexed {added} chunk(s) from {len(args.paths)} file(s)")
-    print(f"   index now holds {len(retriever.store)} chunk(s)")
+    print(f"indexed {added} chunk(s) from {len(args.paths)} file(s)")
+    print(f"index now holds {len(retriever.store)} chunk(s)")
     return 0
 
 

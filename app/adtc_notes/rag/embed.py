@@ -9,8 +9,6 @@ Constraint: keep the embedder out of memory during pure LLM benchmarking.
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 from ..config import CONFIG, EmbeddingConfig
 from ..errors import BackendNotInstalledError, ModelNotFoundError
 
@@ -56,7 +54,16 @@ class Embedder:
         return self.embed([text])[0]
 
 
-@lru_cache(maxsize=1)
+_EMBEDDER: Embedder | None = None
+
+
 def get_embedder(cfg: EmbeddingConfig | None = None) -> Embedder:
-    """Process-wide singleton embedder (loads weights once)."""
-    return Embedder(cfg or CONFIG.embedding)
+    """Process-wide singleton embedder (loads weights once).
+
+    Plain module global rather than ``lru_cache`` (the config dataclass is
+    unhashable). First call wins; later ``cfg`` args are ignored.
+    """
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        _EMBEDDER = Embedder(cfg or CONFIG.embedding)
+    return _EMBEDDER

@@ -28,12 +28,12 @@ EMBED_URL="https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/
 download() {
   local dest="$1" url="$2" label="$3"
   if [[ -f "$dest" ]]; then
-    echo "✓ $label already present at $dest — skipping"
+    echo "[skip] $label already present at $dest"
     return 0
   fi
-  echo "↓ downloading $label"
-  echo "  $url"
-  echo "  → $dest"
+  echo "[download] $label"
+  echo "  from: $url"
+  echo "  to:   $dest"
   if command -v curl > /dev/null 2>&1; then
     curl -L --fail --progress-bar -o "$dest.partial" "$url"
   elif command -v wget > /dev/null 2>&1; then
@@ -43,7 +43,7 @@ download() {
     exit 1
   fi
   mv "$dest.partial" "$dest"
-  echo "✓ done: $dest"
+  echo "[done] $dest"
 }
 
 download "$CHAT_FILE"  "$CHAT_URL"  "chat model (Phi-3.5-mini Q4_K_M, ~2.39 GB)"

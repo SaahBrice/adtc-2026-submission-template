@@ -9,8 +9,12 @@ downloaded and llama-cpp-python installed. Run from the ``app/`` directory:
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
+
+# Make the app package importable regardless of where this script is launched from.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from adtc_notes.config import CONFIG
 from adtc_notes.rag import Retriever

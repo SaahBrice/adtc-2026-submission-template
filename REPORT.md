@@ -4,7 +4,7 @@
 **Domain:** corporate_enterprise  
 **Model:** Phi-3.5-mini-instruct-Q4_K_M (GGUF, llama.cpp)
 
-> ⚠️ This report is a living draft. Benchmark numbers below are **placeholders to be
+> Note: this report is a living draft. Benchmark numbers below are **placeholders to be
 > filled from the ADTC profiler** on target-class hardware. Model selection is
 > provisional pending profiler results (see "Design Decisions").
 

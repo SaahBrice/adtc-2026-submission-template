@@ -5,7 +5,7 @@
 > downloadable documents, and ask grounded questions across a local document
 > library — all on an 8 GB laptop with no internet.
 >
-> - 📦 Application code: [`app/`](app/) · 📄 Technical report: [`REPORT.md`](REPORT.md)
+> - Application code: [`app/`](app/) · Technical report: [`REPORT.md`](REPORT.md)
 > - Domain: `corporate_enterprise` · Model: Phi-3.5-mini-instruct Q4_K_M (GGUF, llama.cpp)
 >
 > The original ADTC template instructions are preserved below.
@@ -18,7 +18,7 @@ Fork this repository, fill in the required files, and submit your repository URL
 
 ---
 
-## ✅ Submission Checklist
+## Submission Checklist
 
 Before submitting, confirm every item:
 
@@ -34,7 +34,7 @@ Before submitting, confirm every item:
 
 ---
 
-## 📁 Required File Structure
+## Required File Structure
 
 ```
 your-submission/
@@ -48,7 +48,7 @@ your-submission/
 
 ---
 
-## 📝 metadata.json
+## metadata.json
 
 Fill in every field. No field should remain at its placeholder value.
 
@@ -96,26 +96,26 @@ Fill in every field. No field should remain at its placeholder value.
 
 | Field | Required | Description |
 |---|---|---|
-| `team_id` | ✅ | Your unique team ID as registered on the ADTF portal |
-| `domain` | ✅ | Your challenge track. One of: `math_scientific_reasoning`, `healthcare_medical`, `agriculture`, `creative_writing`, `coding_assistants`, `corporate_enterprise`, `autonomous_ai_agents` |
-| `language_scope` | ✅ | Array of BCP-47 language codes. Must include at least one. |
-| `african_alpha_claim` | ✅ | `true` only if claiming the African Use Case Bonus |
-| `budget_laptop_claim` | ✅ | Must be `true` — all submissions target the 8 GB RAM laptop profile |
-| `submitter.name` | ✅ | Full name of the team member submitting the run |
-| `submitter.email` | ✅ | Valid email address linked to the registered team |
-| `submitter.github_handle` | ✅ | Verifiable GitHub username |
-| `cross_disciplinary_pairing.discipline` | ✅ | The deep-tech discipline your model serves |
-| `cross_disciplinary_pairing.load_bearing` | ✅ | `true` if the pairing is integral to the submission, not cosmetic |
-| `test_prompts` | ✅ | **Exactly 2 prompts** in your chosen domain. Organizers will add 2 hidden prompts to test for overfitting. |
-| `model.runtime` | ✅ | Must be `llama.cpp`. No other runtime is accepted. |
-| `model.quantization` | ✅ | Must be a GGUF quantization format (e.g. `GGUF Q4_K_M`, `GGUF Q5_K_M`) |
-| `model.parameters_estimate` | ✅ | Approximate parameter count (e.g. `135M`, `1.1B`, `7B`) |
-| `model.packaging` | ✅ | How the model is packaged. One of: `docker_image`, `docker_build_from_repo`, `binary_bundle` |
-| `_runtime.model_path` | ✅ | Relative path from repo root to your `.gguf` file (e.g. `model/my-model.gguf`) |
+| `team_id` | Yes | Your unique team ID as registered on the ADTF portal |
+| `domain` | Yes | Your challenge track. One of: `math_scientific_reasoning`, `healthcare_medical`, `agriculture`, `creative_writing`, `coding_assistants`, `corporate_enterprise`, `autonomous_ai_agents` |
+| `language_scope` | Yes | Array of BCP-47 language codes. Must include at least one. |
+| `african_alpha_claim` | Yes | `true` only if claiming the African Use Case Bonus |
+| `budget_laptop_claim` | Yes | Must be `true` — all submissions target the 8 GB RAM laptop profile |
+| `submitter.name` | Yes | Full name of the team member submitting the run |
+| `submitter.email` | Yes | Valid email address linked to the registered team |
+| `submitter.github_handle` | Yes | Verifiable GitHub username |
+| `cross_disciplinary_pairing.discipline` | Yes | The deep-tech discipline your model serves |
+| `cross_disciplinary_pairing.load_bearing` | Yes | `true` if the pairing is integral to the submission, not cosmetic |
+| `test_prompts` | Yes | **Exactly 2 prompts** in your chosen domain. Organizers will add 2 hidden prompts to test for overfitting. |
+| `model.runtime` | Yes | Must be `llama.cpp`. No other runtime is accepted. |
+| `model.quantization` | Yes | Must be a GGUF quantization format (e.g. `GGUF Q4_K_M`, `GGUF Q5_K_M`) |
+| `model.parameters_estimate` | Yes | Approximate parameter count (e.g. `135M`, `1.1B`, `7B`) |
+| `model.packaging` | Yes | How the model is packaged. One of: `docker_image`, `docker_build_from_repo`, `binary_bundle` |
+| `_runtime.model_path` | Yes | Relative path from repo root to your `.gguf` file (e.g. `model/my-model.gguf`) |
 
 ---
 
-## 📥 download_model.sh
+## download_model.sh
 
 This script **must** download your model weight file to the `model/` directory.
 
@@ -131,7 +131,7 @@ Recommended hosting options for your weights:
 
 ---
 
-## 📄 REPORT.md
+## REPORT.md
 
 Your technical writeup. Judges and the LLM-based audit system will read this to understand your submission. Cover:
 
@@ -144,7 +144,7 @@ Keep it factual and specific. One to three pages is ideal.
 
 ---
 
-## 🧪 Local Testing
+## Local Testing
 
 The ADTC profiler is open source. Install it directly from the official repository:
 
@@ -176,7 +176,7 @@ The profiler source code, including the thermal monitoring logic and scoring for
 
 ---
 
-## ⚠️ Rules
+## Rules
 
 1. **Public repository required.** Your repository must be public at the time of evaluation.
 2. **No model weights in git.** Add `*.gguf` and `model/` to your `.gitignore`. The evaluator downloads weights fresh via `download_model.sh`.
@@ -188,7 +188,7 @@ The profiler source code, including the thermal monitoring logic and scoring for
 
 ---
 
-## 🆘 Support
+## Support
 
 Open an issue in this repository or contact the ADTF team at challenge@africadeeptech.org.
 
@@ -196,7 +196,7 @@ View the full eligibility rules at [adtc-2026.devpost.com/rules](https://adtc-20
 
 ---
 
-## 📄 License
+## License
 
 This template is licensed under the terms of the [GNU GPL v3 License](LICENSE).
 
