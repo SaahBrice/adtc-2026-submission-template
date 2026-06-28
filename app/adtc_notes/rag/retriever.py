@@ -67,8 +67,18 @@ class Retriever:
         qv = embedder.embed_one(question)
         return self.store.search(qv, top_k or self.cfg.rag.top_k)
 
-    def ask(self, question: str, top_k: int | None = None) -> dict:
-        """Answer a question grounded in retrieved context.
+    def ask(
+        self,
+        question: str,
+        top_k: int | None = None,
+        history: list[dict[str, str]] | None = None,
+    ) -> dict:
+        """Answer a question grounded in retrieved context, with optional memory.
+
+        Args:
+            question: The user's question.
+            top_k: Number of chunks to retrieve.
+            history: Prior conversation turns for follow-up context.
 
         Returns:
             ``{"answer": str, "sources": list[str], "contexts": list[str]}``.
@@ -83,5 +93,5 @@ class Retriever:
                 "contexts": [],
             }
         llm = get_llm(self.cfg)
-        answer = llm.chat(prompts.qa_messages(question, contexts))
+        answer = llm.chat(prompts.qa_messages(question, contexts, history=history))
         return {"answer": answer, "sources": sources, "contexts": contexts}

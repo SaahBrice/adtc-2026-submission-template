@@ -35,19 +35,26 @@ def format_document_messages(raw_ocr_text: str) -> list[dict[str, str]]:
 # --- Document Q&A / RAG (PATH B) ---------------------------------------------
 
 _QA_SYSTEM = (
-    "You are an enterprise knowledge assistant. Answer the user's question using "
-    "ONLY the provided context excerpts. If the answer is not in the context, say "
-    "you don't have enough information. Be concise and cite sources as [#] using "
-    "the numbered excerpts."
+    "You are an enterprise knowledge assistant. Answer using ONLY the provided "
+    "context excerpts; if the answer isn't there, say so. Earlier turns of this "
+    "conversation are included for follow-up context. Be concise and direct. "
+    "Format answers in Markdown: use tables for tabular data, bullet lists where "
+    "they help, and LaTeX for math ($...$ inline, $$...$$ for displayed equations). "
+    "Cite sources as [#] using the numbered excerpts."
 )
 
 
-def qa_messages(question: str, contexts: Sequence[str]) -> list[dict[str, str]]:
-    """Build chat messages for grounded question answering over retrieved chunks.
+def qa_messages(
+    question: str,
+    contexts: Sequence[str],
+    history: Sequence[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
+    """Build chat messages for grounded Q&A, with optional conversation memory.
 
     Args:
         question: The user's natural-language question.
         contexts: Retrieved text excerpts, most relevant first.
+        history: Prior ``{"role","content"}`` turns (user/assistant) for follow-ups.
 
     Returns:
         OpenAI-style message list ready for ``LLMClient.chat``.
@@ -56,6 +63,7 @@ def qa_messages(question: str, contexts: Sequence[str]) -> list[dict[str, str]]:
     user = f"Context excerpts:\n\n{numbered}\n\nQuestion: {question}"
     return [
         {"role": "system", "content": _QA_SYSTEM},
+        *(history or []),
         {"role": "user", "content": user},
     ]
 

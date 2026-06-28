@@ -3,126 +3,117 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>adtc_notes — Offline Document Assistant</title>
-<!--
-  Fully offline: all CSS/JS/icons are inline, zero external requests.
-  Design direction: "precision & calm" — an enterprise tool (Linear/Vercel register),
-  borders-only depth, one accent, type hierarchy via size+weight+opacity, restrained motion.
--->
+<title>adtc_notes</title>
+<!-- Fully offline: CSS, JS (marked, temml), and icons are all local. No CDN, no fonts to fetch. -->
+<link rel="preload" href="/static/vendor/marked.min.js" as="script" />
 <style>
   :root {
-    /* Surfaces — one hue, lightness shifts only */
-    --canvas:#0b0d10; --surface:#0f1216; --surface-2:#141821; --inset:#090b0e;
-    /* Text — four levels */
-    --fg:#e6e8ec; --fg-2:#aab2bf; --fg-3:#7b8493; --fg-4:#586070;
-    /* Borders — low-opacity, findable not loud */
-    --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.14); --ring:rgba(76,141,255,.55);
-    /* One accent + semantics */
-    --accent:#4c8dff; --accent-ink:#06101f; --success:#3fb950; --warn:#d6a429; --danger:#f06a60;
-    /* Scale */
-    --r-sm:6px; --r-md:9px; --r-lg:13px; --s:4px;
+    --canvas:#f4f6f9; --surface:#ffffff; --surface-2:#f0f2f6; --inset:#f7f8fa;
+    --fg:#181c22; --fg-2:#525c6b; --fg-3:#8b95a3; --fg-4:#aab2bf;
+    --border:rgba(20,26,38,.10); --border-2:rgba(20,26,38,.17); --ring:rgba(47,111,237,.35);
+    --accent:#2f6fed; --accent-ink:#ffffff; --accent-soft:#eaf1fe;
+    --success:#1a7f37; --warn:#9a6700; --danger:#cf222e;
+    --r-sm:7px; --r-md:10px; --r-lg:14px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.07);
     --ease:cubic-bezier(.23,1,.32,1);
   }
   * { box-sizing:border-box; }
-  html { -webkit-font-smoothing:antialiased; }
+  html,body { height:100%; }
   body {
     margin:0; background:var(--canvas); color:var(--fg);
     font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    letter-spacing:.1px;
+    -webkit-font-smoothing:antialiased; display:flex; flex-direction:column;
   }
   .icon { width:16px; height:16px; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; flex:0 0 auto; }
-  .icon.lg { width:18px; height:18px; }
 
-  /* Header */
-  header { display:flex; align-items:center; gap:12px; padding:14px 24px; border-bottom:1px solid var(--border); }
-  .brand { display:flex; align-items:baseline; gap:10px; }
-  .brand h1 { font-size:15px; font-weight:600; margin:0; letter-spacing:-.2px; }
-  .brand span { font-size:12px; color:var(--fg-3); }
+  header { display:flex; align-items:center; gap:12px; padding:12px 22px; background:var(--surface); border-bottom:1px solid var(--border); }
+  .brand { font-size:15px; font-weight:650; letter-spacing:-.2px; }
   #status { margin-left:auto; display:flex; align-items:center; gap:14px; font-size:12px; color:var(--fg-3); }
   .stat { display:inline-flex; align-items:center; gap:6px; }
-  .stat .dot { width:7px; height:7px; border-radius:50%; background:var(--fg-4); transition:background .2s var(--ease); }
-  .stat .dot.on { background:var(--success); }
-  .stat b { color:var(--fg-2); font-weight:600; font-variant-numeric:tabular-nums; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--fg-4); transition:background .2s var(--ease); }
+  .dot.on { background:var(--success); }
+  .stat b { color:var(--fg-2); font-weight:650; font-variant-numeric:tabular-nums; }
 
-  main { max-width:880px; margin:0 auto; padding:28px 24px 56px; }
-
-  /* Tabs */
-  .tabs { display:inline-flex; gap:2px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); margin-bottom:22px; }
-  .tabs button { display:inline-flex; align-items:center; gap:8px; background:transparent; color:var(--fg-3); border:0; padding:8px 14px; border-radius:var(--r-sm); font:inherit; font-weight:500; cursor:pointer; transition:color .15s var(--ease), background .15s var(--ease); }
+  .tabs { display:flex; gap:2px; padding:8px 22px 0; background:var(--surface); border-bottom:1px solid var(--border); }
+  .tabs button { display:inline-flex; align-items:center; gap:7px; background:transparent; color:var(--fg-3); border:0; border-bottom:2px solid transparent; padding:9px 12px 11px; font:inherit; font-weight:550; cursor:pointer; transition:color .15s var(--ease); }
   .tabs button:hover { color:var(--fg-2); }
-  .tabs button.active { background:var(--surface-2); color:var(--fg); }
-  .tabs button:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+  .tabs button.active { color:var(--accent); border-bottom-color:var(--accent); }
 
-  /* Cards */
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:22px; margin-bottom:18px; }
-  .card h2 { margin:0 0 4px; font-size:15px; font-weight:600; letter-spacing:-.15px; }
-  .card .hint { margin:0 0 18px; color:var(--fg-3); font-size:13px; }
+  main { flex:1; min-height:0; display:flex; flex-direction:column; }
+  .wrap { width:100%; max-width:860px; margin:0 auto; padding:22px; flex:1; min-height:0; display:flex; flex-direction:column; }
 
-  label { display:block; font-size:12px; font-weight:500; color:var(--fg-3); margin:0 0 6px; }
-  input[type=file], select, textarea {
-    width:100%; background:var(--inset); color:var(--fg); border:1px solid var(--border);
-    border-radius:var(--r-sm); padding:10px 11px; font:inherit; transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
-  }
-  input[type=file]::file-selector-button { background:var(--surface-2); color:var(--fg-2); border:1px solid var(--border); border-radius:var(--r-sm); padding:6px 10px; margin-right:10px; font:inherit; cursor:pointer; }
-  select:focus, textarea:focus, input:focus { outline:none; border-color:var(--border-2); box-shadow:0 0 0 3px var(--ring); }
-  textarea { min-height:84px; resize:vertical; }
-
-  .row { display:flex; gap:12px; align-items:flex-end; }
-  .row > .grow { flex:1; }
-
-  /* Primary button */
-  .btn { display:inline-flex; align-items:center; gap:8px; background:var(--accent); color:var(--accent-ink);
-    border:0; border-radius:var(--r-sm); padding:10px 16px; min-height:40px; font:inherit; font-weight:600; cursor:pointer;
-    transition:transform .1s var(--ease), filter .15s var(--ease); }
-  .btn:hover { filter:brightness(1.07); }
+  .btn { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:var(--accent-ink); border:0; border-radius:var(--r-sm); padding:9px 15px; min-height:38px; font:inherit; font-weight:600; cursor:pointer; transition:transform .1s var(--ease), filter .15s var(--ease); }
+  .btn:hover { filter:brightness(1.05); }
   .btn:active { transform:scale(.97); }
-  .btn:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
-  .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; filter:none; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; transform:none; filter:none; }
+  .btn.ghost { background:var(--surface); color:var(--fg-2); border:1px solid var(--border); }
+  .btn.ghost:hover { background:var(--surface-2); filter:none; }
 
-  /* Output area */
-  .out { margin-top:16px; }
-  .out:empty { display:none; }
-  .reveal { animation:reveal .26s var(--ease) both; }
-  @keyframes reveal { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-  pre { background:var(--inset); border:1px solid var(--border); border-radius:var(--r-md); padding:14px; margin:12px 0 0;
-    overflow:auto; white-space:pre-wrap; max-height:340px; color:var(--fg-2); font:12.5px/1.6 ui-monospace,"Cascadia Code",Consolas,monospace; }
-  .line { display:inline-flex; align-items:center; gap:7px; font-size:13px; }
-  .line.ok { color:var(--success); }
-  .line.warn { color:var(--warn); }
-  .line.err { color:var(--danger); }
-  a.dl { display:inline-flex; align-items:center; gap:8px; color:var(--accent); text-decoration:none; font-weight:500; font-size:13px; }
+  input[type=file], select, textarea {
+    background:var(--inset); color:var(--fg); border:1px solid var(--border); border-radius:var(--r-sm);
+    padding:9px 11px; font:inherit; transition:border-color .15s var(--ease), box-shadow .15s var(--ease); }
+  input[type=file]::file-selector-button { background:var(--surface-2); color:var(--fg-2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; margin-right:10px; font:inherit; cursor:pointer; }
+  :focus-visible { outline:none; border-color:var(--border-2); box-shadow:0 0 0 3px var(--ring); }
+  .row { display:flex; gap:10px; align-items:center; }
+  .grow { flex:1; min-width:0; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--shadow); }
+  a.dl { display:inline-flex; align-items:center; gap:7px; color:var(--accent); text-decoration:none; font-weight:600; }
   a.dl:hover { text-decoration:underline; }
-  .sources { color:var(--fg-3); font-size:12px; margin-top:10px; }
-  .sources code { background:var(--surface-2); padding:1px 6px; border-radius:4px; color:var(--fg-2); }
+  .muted { color:var(--fg-3); font-size:13px; }
+  .err { color:var(--danger); font-size:13px; display:inline-flex; gap:6px; align-items:center; }
+  .spin .icon { animation:rot 1s linear infinite; } @keyframes rot { to { transform:rotate(360deg); } }
+  .spin { display:inline-flex; gap:8px; align-items:center; color:var(--fg-3); font-size:13px; }
 
-  /* Spinner */
-  .spin { display:inline-flex; align-items:center; gap:8px; color:var(--fg-3); font-size:13px; }
-  .spin .icon { animation:rot 1s linear infinite; }
-  @keyframes rot { to { transform:rotate(360deg); } }
+  /* Rendered Markdown (answers / previews) */
+  .rich { font-size:14px; color:var(--fg); }
+  .rich :first-child { margin-top:0; } .rich :last-child { margin-bottom:0; }
+  .rich h1,.rich h2,.rich h3 { line-height:1.25; margin:14px 0 6px; }
+  .rich h1 { font-size:19px; } .rich h2 { font-size:16px; } .rich h3 { font-size:14px; }
+  .rich p { margin:8px 0; } .rich ul,.rich ol { margin:8px 0; padding-left:22px; }
+  .rich code { background:var(--surface-2); padding:1px 5px; border-radius:4px; font:12.5px ui-monospace,Consolas,monospace; }
+  .rich pre { background:var(--inset); border:1px solid var(--border); border-radius:var(--r-md); padding:12px; overflow:auto; }
+  .rich pre code { background:none; padding:0; }
+  .rich table { border-collapse:collapse; width:100%; margin:10px 0; font-size:13px; }
+  .rich th,.rich td { border:1px solid var(--border); padding:6px 10px; text-align:left; }
+  .rich th { background:var(--surface-2); font-weight:650; }
+  .rich math { font-size:1.05em; }
+  .rich blockquote { margin:8px 0; padding:2px 12px; border-left:3px solid var(--border-2); color:var(--fg-2); }
 
-  .hidden { display:none; }
+  /* Chat */
+  #chat { flex:1; display:flex; flex-direction:column; min-height:0; gap:12px; }
+  .libbar { display:flex; gap:10px; align-items:center; }
+  .transcript { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding:4px; }
+  .msg { display:flex; }
+  .msg.user { justify-content:flex-end; }
+  .bubble { max-width:80%; padding:11px 14px; border-radius:var(--r-lg); }
+  .msg.user .bubble { background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .msg.ai .bubble { background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow); border-bottom-left-radius:4px; }
+  .msg.ai .src { margin-top:8px; font-size:11.5px; color:var(--fg-3); }
+  .msg.ai .src code { background:var(--surface-2); padding:1px 5px; border-radius:4px; }
+  .empty { margin:auto; text-align:center; color:var(--fg-3); font-size:13px; max-width:340px; }
+  .composer { display:flex; gap:10px; align-items:flex-end; }
+  .composer textarea { flex:1; resize:none; max-height:160px; min-height:42px; }
+
+  .hidden { display:none !important; }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
 
-<!-- Icon sprite (Lucide line icons, MIT). Referenced via <use>. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
-  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></symbol>
   <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.4 2.6L3 8"/><path d="M3 3v5h5"/></symbol>
   <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
 </svg>
 
 <header>
-  <div class="brand">
-    <h1>adtc_notes</h1>
-    <span>offline document assistant · corporate / enterprise</span>
-  </div>
+  <span class="brand">adtc_notes</span>
   <div id="status">
     <span class="stat"><span class="dot" id="dotVis"></span>Vision</span>
     <span class="stat"><span class="dot" id="dotLLM"></span>Model</span>
@@ -131,131 +122,142 @@
   </div>
 </header>
 
+<div class="tabs">
+  <button id="tabChat" class="active" onclick="show('chat')"><svg class="icon"><use href="#i-chat"/></svg>Chat</button>
+  <button id="tabDig" onclick="show('dig')"><svg class="icon"><use href="#i-scan"/></svg>Digitize</button>
+</div>
+
 <main>
-  <div class="tabs" role="tablist">
-    <button id="tabDig" class="active" onclick="show('dig')"><svg class="icon"><use href="#i-scan"/></svg>Digitize</button>
-    <button id="tabAsk" onclick="show('ask')"><svg class="icon"><use href="#i-chat"/></svg>Documents &amp; Ask</button>
+  <!-- CHAT -->
+  <div class="wrap" id="pane-chat">
+    <div id="chat">
+      <div class="libbar">
+        <input type="file" id="docFiles" class="grow" multiple />
+        <button class="btn ghost" id="addBtn" onclick="addDocs()"><svg class="icon"><use href="#i-plus"/></svg>Add</button>
+        <button class="btn ghost" id="resetBtn" onclick="resetChat()" title="New chat"><svg class="icon"><use href="#i-reset"/></svg></button>
+      </div>
+      <div class="transcript" id="transcript">
+        <div class="empty" id="emptyState">Add documents, then ask. This chat keeps the conversation in memory, so follow-up questions work.</div>
+      </div>
+      <div class="composer">
+        <textarea id="q" rows="1" placeholder="Ask about your documents…"></textarea>
+        <button class="btn" id="askBtn" onclick="ask()"><svg class="icon"><use href="#i-send"/></svg></button>
+      </div>
+    </div>
   </div>
 
   <!-- DIGITIZE -->
-  <section id="dig">
+  <div class="wrap hidden" id="pane-dig">
     <div class="card">
-      <h2>Digitize a document</h2>
-      <p class="hint">Upload a photo or scan. The model reconstructs a clean, downloadable file with formulas preserved.</p>
       <div class="row">
-        <div class="grow">
-          <label for="digFile">Image file</label>
-          <input type="file" id="digFile" accept="image/*" />
-        </div>
-        <div style="flex:0 0 150px">
-          <label for="digFmt">Format</label>
-          <select id="digFmt"><option value="md">Markdown</option><option value="docx">Word (.docx)</option><option value="pdf">PDF</option></select>
-        </div>
+        <input type="file" id="digFile" class="grow" accept="image/*" />
+        <select id="digFmt"><option value="md">Markdown</option><option value="docx">Word</option><option value="pdf">PDF</option></select>
         <button class="btn" id="digBtn" onclick="digitize()"><svg class="icon"><use href="#i-scan"/></svg>Digitize</button>
       </div>
-      <div class="out" id="digOut"></div>
+      <div id="digOut" style="margin-top:14px"></div>
     </div>
-  </section>
-
-  <!-- ASK -->
-  <section id="ask" class="hidden">
-    <div class="card">
-      <h2>Document library</h2>
-      <p class="hint">Add PDFs, Word files, text, or images. Everything is indexed locally for question answering.</p>
-      <div class="row">
-        <div class="grow">
-          <label for="docFiles">Documents</label>
-          <input type="file" id="docFiles" multiple />
-        </div>
-        <button class="btn" id="addBtn" onclick="addDocs()"><svg class="icon"><use href="#i-plus"/></svg>Add to library</button>
-      </div>
-      <div class="out" id="addOut"></div>
-    </div>
-    <div class="card">
-      <h2>Ask a question</h2>
-      <p class="hint">Answers are grounded in your indexed documents, with sources cited.</p>
-      <textarea id="q" placeholder="e.g. What were the Q3 action items and who owns them?"></textarea>
-      <div style="margin-top:12px"><button class="btn" id="askBtn" onclick="ask()"><svg class="icon"><use href="#i-chat"/></svg>Ask</button></div>
-      <div class="out" id="askOut"></div>
-    </div>
-  </section>
+  </div>
 </main>
 
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/temml.min.js"></script>
 <script>
 const ic = (id) => `<svg class="icon"><use href="#${id}"/></svg>`;
-function show(which){
-  document.getElementById('dig').classList.toggle('hidden', which!=='dig');
-  document.getElementById('ask').classList.toggle('hidden', which!=='ask');
-  document.getElementById('tabDig').classList.toggle('active', which==='dig');
-  document.getElementById('tabAsk').classList.toggle('active', which==='ask');
+const esc = (s) => (''+s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// Markdown + LaTeX -> HTML. Math is extracted before marked so it can't mangle TeX,
+// then rendered to native MathML via temml. ponytail: math inside code fences is rare; not special-cased.
+function renderRich(md){
+  const math=[];
+  const stash=(t,d)=>{ math.push([t,d]); return `@@M${math.length-1}@@`; };
+  let s=(md||'').replace(/\$\$([\s\S]+?)\$\$/g,(_,t)=>stash(t,true))
+                .replace(/\$([^\$\n]+?)\$/g,(_,t)=>stash(t,false));
+  let html=marked.parse(s);
+  return html.replace(/@@M(\d+)@@/g,(_,i)=>{
+    try { return temml.renderToString(math[i][0].trim(),{displayMode:math[i][1]}); }
+    catch(e){ return esc((math[i][1]?'$$':'$')+math[i][0]+(math[i][1]?'$$':'$')); }
+  });
+}
+
+function show(w){
+  document.getElementById('pane-chat').classList.toggle('hidden',w!=='chat');
+  document.getElementById('pane-dig').classList.toggle('hidden',w!=='dig');
+  document.getElementById('tabChat').classList.toggle('active',w==='chat');
+  document.getElementById('tabDig').classList.toggle('active',w==='dig');
 }
 async function refreshStatus(){
   try{
-    const s = await (await fetch('/api/status')).json();
-    document.getElementById('dotVis').classList.toggle('on', s.vision_present);
-    document.getElementById('dotLLM').classList.toggle('on', s.llm_present);
-    document.getElementById('dotEmb').classList.toggle('on', s.embed_present);
-    document.getElementById('chunks').textContent = s.indexed_chunks;
+    const s=await (await fetch('/api/status')).json();
+    dotVis.classList.toggle('on',s.vision_present);
+    dotLLM.classList.toggle('on',s.llm_present);
+    dotEmb.classList.toggle('on',s.embed_present);
+    chunks.textContent=s.indexed_chunks;
   }catch(e){}
 }
-const spinner = (t) => `<span class="spin">${ic('i-loader')}${t}</span>`;
-const errLine = (t) => `<span class="line err">${ic('i-error')}${escapeHtml(t)}</span>`;
-function busy(btn, on){ btn.disabled = on; }
 
-async function digitize(){
-  const f = document.getElementById('digFile').files[0];
-  const out = document.getElementById('digOut');
-  if(!f){ out.innerHTML = errLine('Choose an image first.'); return; }
-  const btn = document.getElementById('digBtn'); busy(btn,true);
-  out.innerHTML = spinner('Processing — first run loads the model, please wait.');
-  const fd = new FormData(); fd.append('file', f); fd.append('fmt', document.getElementById('digFmt').value);
-  try{
-    const j = await (await fetch('/api/digitize', {method:'POST', body:fd})).json();
-    if(j.error){ out.innerHTML = errLine(j.error); }
-    else {
-      let html = `<a class="dl" href="${j.download}">${ic('i-download')}Download formatted document</a>`;
-      (j.warnings||[]).forEach(w => html += `<div class="line warn" style="margin-top:8px">${ic('i-alert')}${escapeHtml(w)}</div>`);
-      html += `<pre>${escapeHtml(j.markdown)}</pre>`;
-      out.innerHTML = `<div class="reveal">${html}</div>`;
-    }
-  }catch(e){ out.innerHTML = errLine(''+e); }
-  busy(btn,false); refreshStatus();
+// --- Chat ---
+const transcript=document.getElementById('transcript');
+function addMsg(role,html){
+  document.getElementById('emptyState')?.remove();
+  const m=document.createElement('div'); m.className='msg '+role;
+  const b=document.createElement('div'); b.className='bubble'; b.innerHTML=html;
+  m.appendChild(b); transcript.appendChild(m); transcript.scrollTop=transcript.scrollHeight;
+  return b;
 }
-
-async function addDocs(){
-  const files = document.getElementById('docFiles').files;
-  const out = document.getElementById('addOut');
-  if(!files.length){ out.innerHTML = errLine('Choose at least one file.'); return; }
-  const btn = document.getElementById('addBtn'); busy(btn,true);
-  out.innerHTML = spinner('Indexing documents.');
-  const fd = new FormData(); for(const f of files) fd.append('files', f);
-  try{
-    const j = await (await fetch('/api/documents', {method:'POST', body:fd})).json();
-    out.innerHTML = j.error ? errLine(j.error)
-      : `<div class="reveal"><span class="line ok">${ic('i-check')}Added ${j.added} chunk(s). Library holds ${j.indexed_chunks}.</span></div>`;
-  }catch(e){ out.innerHTML = errLine(''+e); }
-  busy(btn,false); refreshStatus();
-}
-
 async function ask(){
-  const q = document.getElementById('q').value.trim();
-  const out = document.getElementById('askOut');
-  if(!q){ out.innerHTML = errLine('Type a question.'); return; }
-  const btn = document.getElementById('askBtn'); busy(btn,true);
-  out.innerHTML = spinner('Thinking.');
+  const ta=document.getElementById('q'); const q=ta.value.trim();
+  if(!q) return;
+  const btn=document.getElementById('askBtn'); btn.disabled=true;
+  addMsg('user',esc(q)); ta.value=''; ta.style.height='auto';
+  const thinking=addMsg('ai',`<span class="spin">${ic('i-loader')}Thinking…</span>`);
   try{
-    const j = await (await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})})).json();
-    if(j.error){ out.innerHTML = errLine(j.error); }
-    else {
-      let html = `<pre>${escapeHtml(j.answer)}</pre>`;
-      if((j.sources||[]).length) html += `<div class="sources">Sources: ${j.sources.map(s=>`<code>${escapeHtml(s)}</code>`).join(' ')}</div>`;
-      out.innerHTML = `<div class="reveal">${html}</div>`;
+    const j=await (await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})})).json();
+    if(j.error){ thinking.innerHTML=`<span class="err">${ic('i-error')}${esc(j.error)}</span>`; }
+    else{
+      let html=`<div class="rich">${renderRich(j.answer)}</div>`;
+      if((j.sources||[]).length) html+=`<div class="src">Sources: ${j.sources.map(s=>`<code>${esc(s)}</code>`).join(' ')}</div>`;
+      thinking.innerHTML=html;
     }
-  }catch(e){ out.innerHTML = errLine(''+e); }
-  busy(btn,false);
+  }catch(e){ thinking.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
+  transcript.scrollTop=transcript.scrollHeight; btn.disabled=false;
+}
+async function addDocs(){
+  const files=document.getElementById('docFiles').files;
+  if(!files.length) return;
+  const btn=document.getElementById('addBtn'); btn.disabled=true;
+  const note=addMsg('ai',`<span class="spin">${ic('i-loader')}Indexing ${files.length} file(s)…</span>`);
+  const fd=new FormData(); for(const f of files) fd.append('files',f);
+  try{
+    const j=await (await fetch('/api/documents',{method:'POST',body:fd})).json();
+    note.innerHTML=j.error?`<span class="err">${ic('i-error')}${esc(j.error)}</span>`
+      :`<span class="muted">Added ${j.added} chunk(s) — ${j.indexed_chunks} indexed. Ask away.</span>`;
+  }catch(e){ note.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
+  btn.disabled=false; document.getElementById('docFiles').value=''; refreshStatus();
+}
+async function resetChat(){
+  await fetch('/api/chat/reset',{method:'POST'});
+  transcript.innerHTML='<div class="empty" id="emptyState">New chat. Memory cleared.</div>';
 }
 
-function escapeHtml(s){ return (''+s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+// --- Digitize ---
+async function digitize(){
+  const f=document.getElementById('digFile').files[0]; const out=document.getElementById('digOut');
+  if(!f){ out.innerHTML=`<span class="err">${ic('i-error')}Choose an image.</span>`; return; }
+  const btn=document.getElementById('digBtn'); btn.disabled=true;
+  out.innerHTML=`<span class="spin">${ic('i-loader')}Reading the page…</span>`;
+  const fd=new FormData(); fd.append('file',f); fd.append('fmt',document.getElementById('digFmt').value);
+  try{
+    const j=await (await fetch('/api/digitize',{method:'POST',body:fd})).json();
+    if(j.error){ out.innerHTML=`<span class="err">${ic('i-error')}${esc(j.error)}</span>`; }
+    else out.innerHTML=`<a class="dl" href="${j.download}">${ic('i-download')}Download</a><div class="rich" style="margin-top:12px">${renderRich(j.markdown)}</div>`;
+  }catch(e){ out.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
+  btn.disabled=false;
+}
+
+// Enter to send (Shift+Enter = newline); textarea auto-grows.
+const qta=document.getElementById('q');
+qta.addEventListener('input',()=>{ qta.style.height='auto'; qta.style.height=Math.min(qta.scrollHeight,160)+'px'; });
+qta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ask(); }});
 refreshStatus();
 </script>
 </body>

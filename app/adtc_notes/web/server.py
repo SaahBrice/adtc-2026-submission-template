@@ -61,8 +61,9 @@ def create_app():
 
     app = FastAPI(title="adtc_notes", docs_url=None, redoc_url=None)
 
-    # Lazily-created retriever shared across requests (index persists to disk).
-    state: dict = {"retriever": None}
+    # Lazily-created retriever + in-memory chat history (this conversation only).
+    state: dict = {"retriever": None, "history": []}
+    max_turns = 6  # keep the last N user/assistant messages for follow-up context
 
     def retriever():
         from ..rag import Retriever
@@ -121,10 +122,18 @@ def create_app():
         if not question:
             return JSONResponse({"error": "empty question"}, status_code=400)
         try:
-            out = retriever().ask(question)
+            out = retriever().ask(question, history=state["history"][-max_turns:])
         except ADTCError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        # Remember this turn so follow-up questions have context.
+        state["history"].append({"role": "user", "content": question})
+        state["history"].append({"role": "assistant", "content": out["answer"]})
         return JSONResponse(out)
+
+    @app.post("/api/chat/reset")
+    def chat_reset():
+        state["history"].clear()
+        return JSONResponse({"ok": True})
 
     @app.get("/download/{name}")
     def download(name: str):
