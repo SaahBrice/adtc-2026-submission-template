@@ -97,30 +97,35 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 
 ## Benchmarks
 
-> Dev-machine measurements (Intel i7-8700, **4 threads** to mimic the target core
-> count; clock differs, so treat as indicative). Official figures come from the profiler.
+Measured with the **official `adtc-profiler`** (participant mode), pinned to **4 cores**
+to mimic the ADTC Standard Laptop (full Linux profiler run on the target laptop pending).
 
-| Metric | Qwen2.5-1.5B-Instruct-Q4_K_M |
-|---|---|
-| Machine | Intel i7-8700, 4 threads (dev proxy) |
-| Generation speed | **14.7 t/s** (flash-attn + q8 KV) |
-| Peak RSS | **1.76 GB** → Seff ≈ 75/100 |
-| RAG answer (with history-aware rewrite) | streamed; first tokens in ~1–2 s |
-| Digitize (Qwen2.5-VL, app-side) | ~5.5 min/page at 1280px (not the scored model) |
-| Thermal throttling | to be measured on target with lm-sensors |
+| Profiler metric | Qwen2.5-1.5B-Instruct-Q4_K_M | Score impact |
+|---|---|---|
+| `tokens_per_second_generation` | **17.03 t/s** | vs 15.0 reference → **Sperf ≈ 100** (capped) |
+| `memory.peak_rss_mb` | **1716 MB (1.72 GB)** | `Seff = 100·(7−1.72)/7` ≈ **75** |
+| `cpu_thermal.throttled` | **false** | **Pthermal = 0** |
+| `cpu_thermal.cpu_percent_p99` | 55.7% | headroom on 4 cores |
+| `model_info.params_match` | **true** | claimed 1.5B == GGUF (fraud check passes) |
+| `model_info.architecture` | qwen2 | valid GGUF via llama.cpp |
 
-For comparison, the previously-provisional Phi-3.5-mini (3.8B) measured **6.2 t/s / 4.15 GB**
-on the same setup — the switch to 1.5B roughly **2.4× throughput and 2.4× less RAM**.
+Raw `llama-bench` (4 threads) confirms: **pp512 = 66.6 t/s, tg128 = 18.6 t/s**. App-side RAG
+answers **stream** (first tokens ~1–2 s warm). The previously-provisional Phi-3.5-mini (3.8B)
+measured 6.2 t/s / 4.15 GB — the switch to 1.5B is ~2.7× throughput and ~2.4× less RAM.
 
-Reproduce locally:
+Digitize (Qwen2.5-VL, app-side, not the scored model): see "Design Decisions"; an OCR-
+specialized engine is under evaluation to cut page latency.
+
+Reproduce:
 
 ```bash
-pip install "git+https://github.com/Africa-Deep-Tech-Foundation/adtc-profiler.git"
+pip install "git+https://github.com/Africa-Deep-Tech-Foundation/adtc-profiler.git"   # needs llama-bench on PATH
 bash download_model.sh
 adtc-profiler run --submission . --mode participant --output submission.json --skip-accuracy
 ```
 
-Official scores are measured by the ADTC profiler on the standard evaluation machine.
+`measured_on` is `participant_laptop`; official scores come from the profiler on the
+standard evaluation machine. (Accuracy/`Sacc` requires the hidden validation set.)
 
 ---
 
