@@ -47,8 +47,9 @@ class LLMClient:
                 f"Run `bash download_model.sh` first."
             )
         Llama = _import_llama()
-        # PERF: n_ctx and n_batch dominate scratch memory; keep modest for 8 GB.
-        self._llm = Llama(
+        # PERF: n_ctx/n_batch dominate scratch memory; flash attention speeds up and
+        # shrinks attention memory; q8_0 KV cache halves KV RAM vs f16. GGML q8_0 == 8.
+        kwargs = dict(
             model_path=str(self.cfg.model_path),
             n_ctx=self.cfg.n_ctx,
             n_threads=self.cfg.n_threads,
@@ -58,6 +59,12 @@ class LLMClient:
             embedding=False,
             verbose=False,
         )
+        if self.cfg.flash_attn:
+            kwargs["flash_attn"] = True
+        if self.cfg.kv_quant_q8:
+            kwargs["type_k"] = 8
+            kwargs["type_v"] = 8
+        self._llm = Llama(**kwargs)
 
     def chat(
         self,

@@ -142,6 +142,32 @@ def create_app():
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({**out, "title": s.title})
 
+    @app.post("/api/sessions/{sid}/ask_stream")
+    def session_ask_stream(sid: str, payload: dict = Body(...)):
+        import json as _json
+
+        from fastapi.responses import StreamingResponse
+
+        from ..rag import get_session
+
+        question = (payload or {}).get("question", "").strip()
+        if not question:
+            return JSONResponse({"error": "empty question"}, status_code=400)
+        s = get_session(sid, CONFIG)
+
+        def events():
+            # SSE: a "meta" frame (sources) then "token" frames, then "done".
+            try:
+                for kind, data in s.ask_stream(question):
+                    ev = "meta" if kind == "meta" else "token"
+                    key = "sources" if kind == "meta" else "t"
+                    yield f"event: {ev}\ndata: {_json.dumps({key: data})}\n\n"
+            except ADTCError as exc:
+                yield f"event: error\ndata: {_json.dumps({'error': str(exc)})}\n\n"
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
     @app.post("/api/sessions/{sid}/reset")
     def session_reset(sid: str):
         from ..rag import get_session

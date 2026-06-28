@@ -2,11 +2,11 @@
 
 **Team ID:** TODO-REGISTER-ON-ADTF-PORTAL  
 **Domain:** corporate_enterprise  
-**Model:** Phi-3.5-mini-instruct-Q4_K_M (GGUF, llama.cpp)
+**Model:** Qwen2.5-1.5B-Instruct-Q4_K_M (GGUF, llama.cpp)
 
-> Note: this report is a living draft. Benchmark numbers below are **placeholders to be
-> filled from the ADTC profiler** on target-class hardware. Model selection is
-> provisional pending profiler results (see "Design Decisions").
+> Note: benchmark numbers below are **dev-machine measurements** (Intel i7-8700, 4
+> threads) used to select the model; official figures come from the ADTC profiler on
+> the 8 GB Ubuntu target.
 
 ---
 
@@ -39,10 +39,14 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 - **Runtime:** `llama.cpp` (via `llama-cpp-python`), as required. The *entire* AI
   stack — chat **and** embeddings — runs on llama.cpp/ggml, so the app needs **no
   PyTorch** at its core. This keeps the dependency footprint and RAM small.
-- **Base model (provisional):** **Phi-3.5-mini-instruct (3.8B)**, MIT-licensed,
-  strong at summarization/drafting/analysis — the core Corporate/Enterprise tasks.
+- **Base model:** **Qwen2.5-1.5B-Instruct**, Apache-2.0, strong instruction-following
+  for summarization/drafting/QA. Chosen by benchmark (below): on a 4-core CPU it hits
+  ~15 t/s at ~1.76 GB — far better throughput and memory than larger models, while RAG
+  grounding keeps answers accurate. This directly maximizes Sperf (30%) and Seff (20%).
 - **Quantization:** **Q4_K_M** — the established speed/quality/RAM sweet spot on
-  memory-constrained CPUs (~2.4 GB weights).
+  memory-constrained CPUs (~0.99 GB weights).
+- **Inference tuning:** flash-attention + **q8_0 KV cache** + `n_ctx=2048` + 4 threads —
+  measured faster and lower-RAM than defaults; KV quantization roughly halves KV memory.
 - **Embeddings:** `bge-small-en-v1.5` GGUF (~25 MB) for offline RAG, loaded only
   during ingestion/query so it does not occupy RAM during chat inference.
 - **Retrieval:** a dependency-light NumPy cosine index (brute force is ample for
@@ -58,20 +62,20 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
   digitize time via a single-active-model manager so peak RAM stays within 8 GB.
   Resolution is the main latency lever (`VLM_MAX_SIDE`, default 1280 for accuracy).
 
-### Alternatives considered
+### Alternatives considered (measured on dev, 4 threads, flash-attn + q8 KV)
 
-| Option | Verdict |
-|---|---|
-| Qwen2.5-3B-Instruct | Strong, but 3B variant carries a non-Apache "Qwen" license — chose MIT Phi-3.5-mini to avoid ambiguity. **To re-benchmark.** |
-| Llama-3.2-3B-Instruct | Good; community license. Candidate fallback if Phi is too slow on CPU. |
-| Qwen2.5-1.5B (Apache) / SmolLM2-1.7B | Lighter/faster, higher efficiency score, but weaker analysis quality. Fallback if RAM/throughput require it. |
-| sentence-transformers embeddings | Rejected: pulls PyTorch. GGUF embeddings keep the stack unified and light. |
-| FAISS vector store | Deferred: unnecessary at SME scale; NumPy avoids an extra dependency. |
-| TeX Live for PDF math | Rejected as default: too heavy for the target; matplotlib mathtext covers it. |
+| Option | t/s | Peak RSS | Verdict |
+|---|---|---|---|
+| **Qwen2.5-1.5B-Instruct** (chosen) | **14.7** | **1.76 GB** | Best balance: near-reference throughput, low RAM, accurate via RAG. Apache-2.0. |
+| Phi-3.5-mini (3.8B) | 6.2 | 4.15 GB | Rejected: too slow (Sperf) and too heavy (Seff ~41, near-OOM). |
+| Qwen2.5-0.5B | 31.5 | 0.55 GB | Fastest/lightest, but weaker reasoning — kept as an extreme-efficiency option. |
+| sentence-transformers embeddings | — | — | Rejected: pulls PyTorch. GGUF embeddings keep the stack unified and light. |
+| FAISS vector store | — | — | Deferred: unnecessary at SME scale; NumPy avoids a dependency. |
+| TeX Live for PDF math | — | — | Rejected as default: too heavy; matplotlib mathtext covers it. |
 
-> **Model selection is not final.** We will profile Phi-3.5-mini, Llama-3.2-3B, and
-> a 1.5B option on the ADTC profiler and pick the best **accuracy ÷ (RAM, latency)**
-> trade-off, since efficiency (20%) and throughput (30%) both reward smaller models.
+> Final confirmation comes from the ADTC profiler on the 8 GB Ubuntu target; if more
+> accuracy is needed we will fine-tune the 1.5B on Corporate/Enterprise data (the
+> challenge's GPU credits exist for exactly this).
 
 ---
 
@@ -80,8 +84,9 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 - **Hardware:** ADTC Standard Laptop — 4 vCPU, **8 GB RAM**, integrated GPU only,
   Ubuntu 22.04. CPU-only inference.
 - **Memory:** efficiency is scored against a 7 GB budget; **OOM = disqualification**.
-  Levers used: Q4_K_M weights, modest `n_ctx` (4096), mmap (no mlock by default),
-  and never co-resident embedding + chat models.
+  Levers used: a 1.5B Q4_K_M model (~1.76 GB peak), `n_ctx=2048`, **q8_0 KV cache**,
+  flash-attention, mmap (no mlock), and a single-active-model manager so the digitize
+  VLM and chat model are never co-resident.
 - **Thermal:** must stay ≤ 85 °C (−10 penalty). Thread count capped at 4; to be
   validated under sustained load with `lm-sensors`.
 - **Connectivity:** **zero network calls at runtime.** Weights download once via
@@ -92,16 +97,20 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 
 ## Benchmarks
 
-> Placeholders — to be replaced with real `adtc-profiler` output on target hardware.
+> Dev-machine measurements (Intel i7-8700, **4 threads** to mimic the target core
+> count; clock differs, so treat as indicative). Official figures come from the profiler.
 
-| Metric | Value |
+| Metric | Qwen2.5-1.5B-Instruct-Q4_K_M |
 |---|---|
-| Machine | TBD (dev) / ADTC Standard Laptop (official) |
-| Model | Phi-3.5-mini-instruct-Q4_K_M |
-| RAM at peak | _TBD_ |
-| Time to first token | _TBD_ |
-| Generation speed (t/s) | _TBD_ |
-| Thermal throttling | _TBD_ |
+| Machine | Intel i7-8700, 4 threads (dev proxy) |
+| Generation speed | **14.7 t/s** (flash-attn + q8 KV) |
+| Peak RSS | **1.76 GB** → Seff ≈ 75/100 |
+| RAG answer (with history-aware rewrite) | streamed; first tokens in ~1–2 s |
+| Digitize (Qwen2.5-VL, app-side) | ~5.5 min/page at 1280px (not the scored model) |
+| Thermal throttling | to be measured on target with lm-sensors |
+
+For comparison, the previously-provisional Phi-3.5-mini (3.8B) measured **6.2 t/s / 4.15 GB**
+on the same setup — the switch to 1.5B roughly **2.4× throughput and 2.4× less RAM**.
 
 Reproduce locally:
 

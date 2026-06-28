@@ -25,13 +25,13 @@
     }
   ],
   "model": {
-    "name": "Phi-3.5-mini-instruct-Q4_K_M",
+    "name": "Qwen2.5-1.5B-Instruct-Q4_K_M",
     "runtime": "llama.cpp",
     "quantization": "GGUF Q4_K_M",
-    "parameters_estimate": "3.8B",
+    "parameters_estimate": "1.5B",
     "packaging": "binary_bundle"
   },
   "_runtime": {
-    "model_path": "model/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+    "model_path": "model/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
   }
 }

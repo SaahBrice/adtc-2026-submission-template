@@ -232,16 +232,33 @@ async function ask(){
   const ta=document.getElementById('q'); const q=ta.value.trim(); if(!q||!SID) return;
   const btn=document.getElementById('askBtn'); btn.disabled=true;
   addMsg('user',esc(q)); ta.value=''; ta.style.height='auto';
-  const thinking=addMsg('ai',`<span class="spin">${ic('i-loader')}Thinking…</span>`);
+  const bubble=addMsg('ai',`<span class="spin">${ic('i-loader')}Thinking…</span>`);
+  let sources=[], acc="";
   try{
-    const j=await (await fetch(`/api/sessions/${SID}/ask`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})})).json();
-    if(j.error){ thinking.innerHTML=`<span class="err">${ic('i-error')}${esc(j.error)}</span>`; }
-    else{
-      let html=`<div class="rich">${renderRich(j.answer)}</div>`;
-      if((j.sources||[]).length) html+=`<div class="src">Sources: ${j.sources.map(s=>`<code>${esc(s)}</code>`).join(' ')}</div>`;
-      thinking.innerHTML=html; loadSessions(); // title may have updated
+    const resp=await fetch(`/api/sessions/${SID}/ask_stream`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    const reader=resp.body.getReader(); const dec=new TextDecoder(); let sbuf="";
+    while(true){
+      const {value,done}=await reader.read(); if(done) break;
+      sbuf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=sbuf.indexOf("\n\n"))>=0){
+        const frame=sbuf.slice(0,i); sbuf=sbuf.slice(i+2);
+        const ev=(frame.match(/^event: (.*)$/m)||[])[1];
+        const dl=(frame.match(/^data: (.*)$/m)||[])[1];
+        if(!dl) continue;
+        const data=JSON.parse(dl);
+        if(ev==='meta') sources=data.sources||[];
+        else if(ev==='token'){ acc+=data.t; bubble.textContent=acc; transcript.scrollTop=1e9; }
+        else if(ev==='error'){ bubble.innerHTML=`<span class="err">${ic('i-error')}${esc(data.error)}</span>`; }
+      }
     }
-  }catch(e){ thinking.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
+    if(acc){
+      let html=`<div class="rich">${renderRich(acc)}</div>`;
+      if(sources.length) html+=`<div class="src">Sources: ${sources.map(s=>`<code>${esc(s)}</code>`).join(' ')}</div>`;
+      bubble.innerHTML=html;
+    }
+    loadSessions();
+  }catch(e){ bubble.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
   document.getElementById('transcript').scrollTop=1e9; btn.disabled=false;
 }
 

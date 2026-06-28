@@ -16,9 +16,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_DIR="$HERE/model"
 mkdir -p "$MODEL_DIR"
 
-# ── Chat model (scored): Phi-3.5-mini-instruct, Q4_K_M, ~2.39 GB, MIT license ──
-CHAT_FILE="$MODEL_DIR/Phi-3.5-mini-instruct-Q4_K_M.gguf"
-CHAT_URL="https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+# ── Chat model (scored): Qwen2.5-1.5B-Instruct, Q4_K_M, ~0.99 GB, Apache-2.0 ──
+# Chosen by benchmark: ~15 t/s and ~1.76 GB RSS on a 4-core CPU (flash-attn + q8 KV).
+CHAT_FILE="$MODEL_DIR/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+CHAT_URL="https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
 
 # ── Embedding model (RAG): bge-small-en-v1.5, Q4_K_M, ~25 MB, MIT license ──────
 EMBED_FILE="$MODEL_DIR/bge-small-en-v1.5-q4_k_m.gguf"
@@ -54,7 +55,7 @@ download() {
   echo "[done] $dest"
 }
 
-download "$CHAT_FILE"        "$CHAT_URL"        "chat model (Phi-3.5-mini Q4_K_M, ~2.39 GB)"
+download "$CHAT_FILE"        "$CHAT_URL"        "chat model (Qwen2.5-1.5B Q4_K_M, ~0.99 GB)"
 download "$EMBED_FILE"       "$EMBED_URL"       "embedding model (bge-small-en-v1.5, ~25 MB)"
 download "$VLM_FILE"         "$VLM_URL"         "vision model (Qwen2.5-VL-3B Q4_K_M, ~1.93 GB)"
 download "$VLM_MMPROJ_FILE"  "$VLM_MMPROJ_URL"  "vision projector (mmproj f16, ~1.34 GB)"

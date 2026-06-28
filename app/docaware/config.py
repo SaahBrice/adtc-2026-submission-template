@@ -42,18 +42,24 @@ class LLMConfig:
     sized for 4 vCPU. ``n_ctx`` is the single biggest RAM lever after model size.
     """
 
-    # Provisional default — see REPORT.md "Model selection". MIT-licensed, strong
-    # at summarization/drafting, ~2.2 GB at Q4_K_M. Final pick confirmed via profiler.
+    # Scored model — chosen for throughput + low RAM on a 4-core/8 GB CPU (see
+    # docs/SELF_ASSESSMENT.md benchmarks). RAG grounds answers, so a small model
+    # keeps accuracy while winning Sperf (30%) and Seff (20%).
     model_filename: str = field(
-        default_factory=lambda: _env("MODEL_FILE", "Phi-3.5-mini-instruct-Q4_K_M.gguf")
+        default_factory=lambda: _env("MODEL_FILE", "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")
     )
-    n_ctx: int = field(default_factory=lambda: _env_int("N_CTX", 4096))
+    # PERF: n_ctx is the biggest RAM lever after model size; 2048 fits RAG context
+    # (top-k chunks + short history) with room to spare and shrinks the KV cache.
+    n_ctx: int = field(default_factory=lambda: _env_int("N_CTX", 2048))
     n_threads: int = field(default_factory=lambda: _env_int("N_THREADS", 4))  # 4 vCPU target
-    n_batch: int = field(default_factory=lambda: _env_int("N_BATCH", 256))
+    n_batch: int = field(default_factory=lambda: _env_int("N_BATCH", 512))
     max_tokens: int = field(default_factory=lambda: _env_int("MAX_TOKENS", 1024))
     temperature: float = 0.3  # low: factual drafting/summarization, not creative
-    # PERF: mmap keeps weights on disk and pages in on demand (lower RSS); mlock would
-    # pin them in RAM (faster, but risks OOM on 8 GB) — leave mlock off by default.
+    # PERF: flash attention is faster and uses less memory; q8_0 KV cache halves
+    # KV RAM vs f16 with negligible quality loss. Both validated by the model bench.
+    flash_attn: bool = field(default_factory=lambda: _env("FLASH_ATTN", "1") == "1")
+    kv_quant_q8: bool = field(default_factory=lambda: _env("KV_Q8", "1") == "1")
+    # mmap keeps weights pageable (lower RSS); mlock would pin them (risks OOM on 8 GB).
     use_mmap: bool = True
     use_mlock: bool = False
 

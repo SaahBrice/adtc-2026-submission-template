@@ -128,33 +128,58 @@ class ChatSession:
         )
         return (rewritten or question).strip() or question
 
-    def ask(self, question: str, top_k: int | None = None) -> dict:
-        """Answer a question with history-aware retrieval, memory, and citations.
+    _NO_DOCS = "No documents in this chat yet — add some first."
 
-        Returns ``{"answer", "sources", "contexts"}``. Persists the turn to history.
-        """
+    def _prepare(self, question: str, top_k: int | None = None):
+        """Run history-aware retrieval. Returns ``(history, labeled, sources)`` or None."""
         history = self.history[-self.cfg.rag.max_history_messages :]
         if len(self.store) == 0:
-            return {
-                "answer": "No documents in this chat yet — add some first.",
-                "sources": [],
-                "contexts": [],
-            }
-
+            return None
         query = self._retrieval_query(question, history)
         embedder = get_embedder(self.cfg.embedding)
         results = self.store.search(embedder.embed_one(query), top_k or self.cfg.rag.top_k)
-
         labeled = [(self._label(c), c.text) for c, _ in results]
         sources = list(dict.fromkeys(label for label, _ in labeled))  # unique, ordered
-        answer = get_llm(self.cfg).chat(prompts.qa_messages(question, labeled, history))
+        return history, labeled, sources
 
+    def _commit(self, question: str, answer: str) -> None:
+        """Persist a completed turn to history (and name the chat on first turn)."""
         self.history.append({"role": "user", "content": question})
         self.history.append({"role": "assistant", "content": answer})
         if self.meta.get("title") == "New chat":
             self.meta["title"] = question[:48]
         self.save()
+
+    def ask(self, question: str, top_k: int | None = None) -> dict:
+        """Answer a question (non-streaming). Returns ``{answer, sources, contexts}``."""
+        prep = self._prepare(question, top_k)
+        if prep is None:
+            return {"answer": self._NO_DOCS, "sources": [], "contexts": []}
+        history, labeled, sources = prep
+        answer = get_llm(self.cfg).chat(prompts.qa_messages(question, labeled, history))
+        self._commit(question, answer)
         return {"answer": answer, "sources": sources, "contexts": [t for _, t in labeled]}
+
+    def ask_stream(self, question: str, top_k: int | None = None):
+        """Stream an answer token-by-token for a responsive UI.
+
+        Yields ``("meta", sources)`` first, then ``("delta", text)`` chunks. Persists
+        the full turn once streaming finishes.
+        """
+        prep = self._prepare(question, top_k)
+        if prep is None:
+            yield ("meta", [])
+            yield ("delta", self._NO_DOCS)
+            return
+        history, labeled, sources = prep
+        yield ("meta", sources)
+        pieces: list[str] = []
+        for piece in get_llm(self.cfg).chat(
+            prompts.qa_messages(question, labeled, history), stream=True
+        ):
+            pieces.append(piece)
+            yield ("delta", piece)
+        self._commit(question, "".join(pieces))
 
     def reset(self) -> None:
         """Clear this chat's conversation history (keeps its documents/index)."""
