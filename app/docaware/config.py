@@ -88,33 +88,48 @@ class EmbeddingConfig:
         return MODEL_DIR / self.model_filename
 
 
+def _detect_mtmd_cli() -> str:
+    """Find the native ``llama-mtmd-cli`` binary used for vision OCR.
+
+    Honors ``ADTC_MTMD_CLI``; else searches PATH; else common local build dirs.
+    Returns "" if not found (digitize then reports a clear, actionable error).
+    """
+    import shutil
+
+    explicit = os.environ.get("ADTC_MTMD_CLI")
+    if explicit:
+        return explicit
+    found = shutil.which("llama-mtmd-cli") or shutil.which("llama-mtmd-cli.exe")
+    if found:
+        return found
+    for c in (REPO_ROOT / "bin" / "llama-mtmd-cli.exe", REPO_ROOT / "bin" / "llama-mtmd-cli"):
+        if c.exists():
+            return str(c)
+    return ""
+
+
 @dataclass
 class VisionConfig:
-    """Settings for the local vision-language model used to digitize images.
+    """Settings for the OCR/digitize vision model (DeepSeek-OCR via llama.cpp).
 
-    A GGUF VLM (Qwen2.5-VL) run through llama.cpp with an mmproj projector. It reads
-    handwriting/printed pages and formulas directly into Markdown — far better than
-    Tesseract on cursive. App-side only (not the ADTC-benchmarked model). Loaded
-    alone at digitize time (see model manager) to keep peak RAM within 8 GB.
+    DeepSeek-OCR uses "optical compression" (few vision tokens) → fast on CPU and
+    robust to real-world scans/photos. Run through the native ``llama-mtmd-cli`` (a
+    subprocess) with the model's own chat template (`--jinja`) — the reliable path
+    for these OCR VLMs. App-side only (not the ADTC-benchmarked model).
     """
 
-    model_filename: str = field(
-        default_factory=lambda: _env("VLM_FILE", "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf")
-    )
+    model_filename: str = field(default_factory=lambda: _env("VLM_FILE", "DeepSeek-OCR-Q8_0.gguf"))
     mmproj_filename: str = field(
-        default_factory=lambda: _env("VLM_MMPROJ", "mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf")
+        default_factory=lambda: _env("VLM_MMPROJ", "mmproj-DeepSeek-OCR-Q8_0.gguf")
     )
-    # Vision tokens are many; a larger context is needed than for plain chat.
+    mtmd_cli: str = field(default_factory=_detect_mtmd_cli)
+    prompt: str = field(
+        default_factory=lambda: _env("VLM_PROMPT", "Convert this document to markdown.")
+    )
     n_ctx: int = field(default_factory=lambda: _env_int("VLM_N_CTX", 8192))
-    # The CLIP image encoder dominates latency on CPU; use all available cores
-    # for the (app-side, non-benchmarked) vision pass to keep digitize responsive.
     n_threads: int = field(default_factory=lambda: _env_int("VLM_THREADS", os.cpu_count() or 4))
-    # Longest image edge in px. CLIP cost grows ~quadratically with this, so it is
-    # the main speed lever. 1280 preserves transcription accuracy on dense handwriting;
-    # lower it (e.g. ADTC_... VLM_MAX_SIDE=1024) to trade some accuracy for speed.
-    max_image_side: int = field(default_factory=lambda: _env_int("VLM_MAX_SIDE", 1280))
     max_tokens: int = field(default_factory=lambda: _env_int("VLM_MAX_TOKENS", 2048))
-    temperature: float = 0.1  # transcription must be faithful, not creative
+    temperature: float = 0.2  # faithful transcription; matches DeepSeek-OCR guidance
 
     @property
     def model_path(self) -> Path:

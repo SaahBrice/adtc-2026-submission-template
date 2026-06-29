@@ -26,3 +26,6 @@ app/.venv/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Native llama.cpp binaries (fetched by download_model.sh)
+bin/

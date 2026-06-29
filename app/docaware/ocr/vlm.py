@@ -1,122 +1,91 @@
-"""docaware/ocr/vlm.py — Vision-language digitize engine (Qwen2.5-VL via llama.cpp).
+"""docaware/ocr/vlm.py — Digitize engine: DeepSeek-OCR via native llama-mtmd-cli.
 
-Reads a photographed/scanned page — including cursive handwriting and math — and
-emits clean Markdown with LaTeX directly. This is the high-quality digitize path;
-Tesseract remains a printed-text fallback. Fully offline, CPU, no PyTorch.
+DeepSeek-OCR ("optical compression": few vision tokens) is fast on CPU (~40 s/page
+vs minutes for a general VLM) and robust to real-world scans/photos. It is run
+through the native ``llama-mtmd-cli`` binary as a subprocess, using the model's own
+chat template (``--jinja``) — the reliable path for these OCR VLMs (the Python
+bindings' generic handler mis-formats them and loops).
 
-Memory: managed by ``docaware._models`` so loading the VLM evicts the chat LLM
-and embedder first (the VLM is ~3.3 GB and must run alone on an 8 GB machine).
+App-side only (not the ADTC-benchmarked model). The subprocess loads the weights
+transiently and frees them on exit; before launching it we evict the in-process
+chat/embedding models so peak RAM stays within the 8 GB budget. Fully offline.
 """
 
 from __future__ import annotations
 
-import base64
-import io
+import subprocess
 from pathlib import Path
 
 from ..config import CONFIG, VisionConfig
 from ..errors import BackendNotInstalledError, ModelNotFoundError
 
-# One-shot instruction: faithful transcription into structured Markdown + LaTeX.
-TRANSCRIBE_PROMPT = (
-    "You are a meticulous document transcription engine. Transcribe the page in the "
-    "image into clean, faithful GitHub-flavored Markdown.\n"
-    "Rules:\n"
-    "- Preserve the reading order and structure: headings, bullet/numbered lists, tables.\n"
-    "- Render every mathematical expression as LaTeX: inline as $...$ and displayed "
-    "equations as $$...$$.\n"
-    "- Represent each diagram or figure with a concise italic caption like "
-    "*(Figure: short description of what it shows)*.\n"
-    "- Transcribe exactly what is on the page. Do not invent content; do not omit content.\n"
-    "- Output only the Markdown, with no preamble or commentary."
-)
-
 
 def is_available(cfg: VisionConfig | None = None) -> bool:
-    """Return True if both the VLM weights and its mmproj projector are present."""
+    """True if the DeepSeek-OCR weights, mmproj, and llama-mtmd-cli are all present."""
     cfg = cfg or CONFIG.vision
-    return cfg.model_path.exists() and cfg.mmproj_path.exists()
+    return bool(cfg.mtmd_cli) and cfg.model_path.exists() and cfg.mmproj_path.exists()
 
 
-def _image_data_uri(path: str | Path, *, max_side: int = 1280) -> str:
-    """Load, EXIF-orient, downscale, and base64-encode an image as a JPEG data URI.
-
-    Bounding the longest side keeps the vision token count (and latency) sane on CPU
-    without hurting legibility for document text.
-    """
-    try:
-        from PIL import Image, ImageOps  # type: ignore
-    except ImportError as exc:
-        raise BackendNotInstalledError("Pillow not installed: pip install pillow") from exc
-    img = Image.open(path)
-    img = ImageOps.exif_transpose(img).convert("RGB")
-    if max(img.size) > max_side:
-        scale = max_side / max(img.size)
-        img = img.resize((int(img.width * scale), int(img.height * scale)))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=90)
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    return f"data:image/jpeg;base64,{b64}"
-
-
-class VisionModel:
-    """A loaded Qwen2.5-VL model that transcribes images to Markdown."""
+class VisionEngine:
+    """Stateless wrapper that shells out to llama-mtmd-cli for one image."""
 
     def __init__(self, cfg: VisionConfig | None = None):
         self.cfg = cfg or CONFIG.vision
-        if not self.cfg.model_path.exists():
+        if not self.cfg.model_path.exists() or not self.cfg.mmproj_path.exists():
             raise ModelNotFoundError(
-                f"Vision model not found at {self.cfg.model_path}. Run `bash download_model.sh`."
+                f"DeepSeek-OCR weights missing ({self.cfg.model_path.name} / "
+                f"{self.cfg.mmproj_path.name}). Run `bash download_model.sh`."
             )
-        if not self.cfg.mmproj_path.exists():
-            raise ModelNotFoundError(
-                f"Vision projector (mmproj) not found at {self.cfg.mmproj_path}."
-            )
-        try:
-            from llama_cpp import Llama  # type: ignore
-            from llama_cpp.llama_chat_format import Qwen25VLChatHandler  # type: ignore
-        except ImportError as exc:
+        if not self.cfg.mtmd_cli:
             raise BackendNotInstalledError(
-                "llama-cpp-python is not installed: pip install llama-cpp-python"
-            ) from exc
-
-        handler = Qwen25VLChatHandler(clip_model_path=str(self.cfg.mmproj_path), verbose=False)
-        self._llm = Llama(
-            model_path=str(self.cfg.model_path),
-            chat_handler=handler,
-            n_ctx=self.cfg.n_ctx,
-            n_threads=self.cfg.n_threads,
-            verbose=False,
-        )
+                "llama-mtmd-cli not found. Install llama.cpp (it provides llama-mtmd-cli)\n"
+                "and put it on PATH, or set ADTC_MTMD_CLI to its full path.\n"
+                "Prebuilt binaries: https://github.com/ggml-org/llama.cpp/releases"
+            )
 
     def transcribe(self, image_path: str | Path) -> str:
-        """Transcribe one image into clean Markdown (with LaTeX for formulas)."""
-        uri = _image_data_uri(image_path, max_side=self.cfg.max_image_side)
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": TRANSCRIBE_PROMPT},
-                    {"type": "image_url", "image_url": {"url": uri}},
-                ],
-            }
+        """Transcribe one image to Markdown via llama-mtmd-cli. Returns the Markdown."""
+        # Free the in-process chat/embedder so the OCR subprocess has RAM headroom.
+        from .. import _models
+
+        _models.drop("llm")
+        _models.drop("embed")
+
+        cmd = [
+            self.cfg.mtmd_cli,
+            "-m",
+            str(self.cfg.model_path),
+            "--mmproj",
+            str(self.cfg.mmproj_path),
+            "--image",
+            str(image_path),
+            "-p",
+            self.cfg.prompt,
+            "-c",
+            str(self.cfg.n_ctx),
+            "-n",
+            str(self.cfg.max_tokens),
+            "--temp",
+            str(self.cfg.temperature),
+            "--top-p",
+            "0.9",
+            "--top-k",
+            "0",
+            "--repeat-penalty",
+            "1.0",
+            "-t",
+            str(self.cfg.n_threads),
+            "-ngl",
+            "0",  # CPU-only, matching the target hardware
+            "--jinja",  # use the model's own chat template (critical for OCR VLMs)
         ]
-        out = self._llm.create_chat_completion(
-            messages=messages,
-            max_tokens=self.cfg.max_tokens,
-            temperature=self.cfg.temperature,
-        )
-        return out["choices"][0]["message"]["content"].strip()
+        proc = subprocess.run(cmd, capture_output=True)  # binary output → decode utf-8
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", "replace")[-800:]
+            raise BackendNotInstalledError(f"llama-mtmd-cli failed:\n{err}")
+        return proc.stdout.decode("utf-8", "replace").strip()
 
 
-def get_vision(cfg: VisionConfig | None = None) -> VisionModel:
-    """Return the active ``VisionModel``, loading it if needed.
-
-    Evicts the heavy chat LLM and embedder first to free RAM for the ~3.3 GB VLM.
-    """
-    from .. import _models
-
-    existing = _models.get("vision")
-    if existing is not None:
-        return existing
-    return _models.register("vision", VisionModel(cfg or CONFIG.vision), evict=("llm", "embed"))
+def get_vision(cfg: VisionConfig | None = None) -> VisionEngine:
+    """Return a vision engine (cheap; the heavy model runs in a subprocess per call)."""
+    return VisionEngine(cfg or CONFIG.vision)
