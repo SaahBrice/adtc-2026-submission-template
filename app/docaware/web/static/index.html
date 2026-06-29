@@ -152,7 +152,7 @@
     <div class="digwrap">
       <div class="card">
         <div class="row">
-          <input type="file" id="digFile" class="grow" accept="image/*" />
+          <input type="file" id="digFile" class="grow" accept="image/*,application/pdf,.pdf" />
           <select id="digFmt"><option value="md">Markdown</option><option value="docx">Word</option><option value="pdf">PDF</option></select>
           <button class="btn" id="digBtn" onclick="digitize()"><svg class="icon"><use href="#i-scan"/></svg>Digitize</button>
         </div>
@@ -291,13 +291,21 @@ async function ask(){
 }
 
 // --- digitize ---
+// Parse JSON safely; if the server returned a non-JSON error (e.g. a 500 page),
+// surface a readable message instead of crashing on JSON.parse.
+async function safeJson(resp){
+  const text=await resp.text();
+  try{ return JSON.parse(text); }
+  catch(e){ return {error: resp.ok ? "Unexpected response from server." : `Server error (${resp.status}). Check the server window.`}; }
+}
 async function digitize(){
   const f=document.getElementById('digFile').files[0]; const out=document.getElementById('digOut');
-  if(!f){ out.innerHTML=`<span class="err">${ic('i-error')}Choose an image.</span>`; return; }
+  if(!f){ out.innerHTML=`<span class="err">${ic('i-error')}Choose an image or PDF.</span>`; return; }
   const btn=document.getElementById('digBtn'); btn.disabled=true;
-  out.innerHTML=`<span class="spin">${ic('i-loader')}Reading the page…</span>`;
+  out.innerHTML=`<span class="spin">${ic('i-loader')}Reading the document… (a PDF processes page by page)</span>`;
   const fd=new FormData(); fd.append('file',f); fd.append('fmt',document.getElementById('digFmt').value);
-  try{const j=await (await fetch('/api/digitize',{method:'POST',body:fd})).json();
+  try{
+    const j=await safeJson(await fetch('/api/digitize',{method:'POST',body:fd}));
     out.innerHTML=j.error?`<span class="err">${ic('i-error')}${esc(j.error)}</span>`:`<a class="dl" href="${j.download}">${ic('i-download')}Download</a><div class="rich" style="margin-top:12px">${renderRich(j.markdown)}</div>`;
   }catch(e){ out.innerHTML=`<span class="err">${ic('i-error')}${esc(e)}</span>`; }
   btn.disabled=false;

@@ -74,8 +74,8 @@ def create_app():
         src = _save_upload(file, uploads)
         try:
             result = digitize_to_document(src, fmt=fmt)
-        except ADTCError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Exception as exc:  # always return JSON so the UI can show the error
+            return JSONResponse({"error": str(exc) or exc.__class__.__name__}, status_code=400)
         return JSONResponse(
             {
                 "markdown": result.markdown,

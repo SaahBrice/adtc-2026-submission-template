@@ -121,8 +121,16 @@ def _render_pdf(markdown: str, out_path: Path) -> None:
     _render_pdf_fallback(markdown, out_path)
 
 
+_FONT_DIR = Path(__file__).parent / "fonts"
+
+
 def _render_pdf_fallback(markdown: str, out_path: Path) -> None:
-    """Dependency-light PDF using fpdf2 (no math typesetting, plain text layout)."""
+    """Dependency-light PDF via fpdf2 with a bundled Unicode font (DejaVuSans).
+
+    The Unicode font renders any character (em-dash, ω, π, √, …) so the PDF never
+    crashes on the model's output; ``wrapmode="CHAR"`` guards against unbreakable
+    long tokens. Headings/bullets are styled; math stays as readable LaTeX text.
+    """
     try:
         from fpdf import FPDF  # type: ignore
     except ImportError as exc:
@@ -134,14 +142,33 @@ def _render_pdf_fallback(markdown: str, out_path: Path) -> None:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Helvetica", size=11)
-    for line in markdown.split("\n"):
+
+    regular, bold = _FONT_DIR / "DejaVuSans.ttf", _FONT_DIR / "DejaVuSans-Bold.ttf"
+    if regular.exists():  # Unicode-capable (preferred)
+        pdf.add_font("dejavu", "", str(regular))
+        if bold.exists():
+            pdf.add_font("dejavu", "B", str(bold))
+        family, uni = "dejavu", True
+    else:  # last-resort core font (latin-1 only)
+        family, uni = "Helvetica", False
+
+    def write(text: str, *, size: int, style: str = "") -> None:
+        pdf.set_font(family, style=style if (uni or style == "") else style, size=size)
+        if not uni:
+            text = text.encode("latin-1", "replace").decode("latin-1")
+        pdf.multi_cell(0, size * 0.55 + 2, text, wrapmode="CHAR")
+
+    for raw in markdown.split("\n"):
+        line = raw.rstrip()
+        if not line:
+            pdf.ln(3)
+            continue
         heading = _HEADING.match(line)
+        bullet = _BULLET.match(line)
         if heading:
-            pdf.set_font("Helvetica", style="B", size=14)
-            pdf.multi_cell(0, 8, heading.group(2))
-            pdf.set_font("Helvetica", size=11)
+            write(heading.group(2), size=15, style="B")
+        elif bullet:
+            write("•  " + bullet.group(1), size=11)
         else:
-            # latin-1 is fpdf2's core-font encoding; replace unsupported glyphs.
-            pdf.multi_cell(0, 6, line.encode("latin-1", "replace").decode("latin-1"))
+            write(line, size=11)
     pdf.output(str(out_path))
