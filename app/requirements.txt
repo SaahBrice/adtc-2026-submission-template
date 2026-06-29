@@ -7,9 +7,8 @@ llama-cpp-python>=0.3.2
 # --- RAG / data ---
 numpy>=1.26
 
-# --- OCR (text) ---
-pillow>=10.0
-pytesseract>=0.3.10           # requires the system `tesseract` binary (see README)
+# --- OCR/digitize: DeepSeek-OCR runs via the native llama-mtmd-cli binary
+#     (from llama.cpp; fetched by download_model.sh) — no extra Python deps. ---
 
 # --- Document ingestion ---
 pypdf>=4.0

@@ -9,9 +9,9 @@ GGUF model run through `llama.cpp`:
 - **Ask (PATH B / RAG):** index many local documents (PDF, Word, text, images)
   → ask questions answered with grounded, cited context.
 
-> The whole AI stack (chat **and** embeddings) runs on llama.cpp — **no PyTorch**
-> in the core, to respect the 8 GB budget. The only PyTorch-dependent feature is
-> optional formula OCR (pix2tex), fully isolated in `docaware/ocr/formula.py`.
+> The entire stack runs on **llama.cpp — no PyTorch at all**: the chat model and
+> embeddings via `llama-cpp-python`, and OCR via the native `llama-mtmd-cli`
+> (DeepSeek-OCR). Small footprint, fully offline, fits the 8 GB budget.
 
 ---
 
@@ -22,8 +22,8 @@ docaware/
 ├── config.py          # all tunables (RAM/speed levers), env-overridable
 ├── errors.py          # explicit exception types
 ├── llm/               # GGUF chat model wrapper + prompt templates
-├── ocr/               # preprocess → Tesseract text OCR → (optional) formula OCR
-├── rag/               # ingest → chunk → embed (GGUF) → NumPy vector store → retrieve
+├── ocr/               # DeepSeek-OCR via native llama-mtmd-cli (image → Markdown)
+├── rag/               # ingest → chunk → embed (GGUF) → NumPy store → sessions/memory
 ├── render/            # Markdown / DOCX / PDF writers + LaTeX→PNG (matplotlib)
 ├── pipeline.py        # PATH A orchestration (image → formatted document)
 └── cli.py             # command-line interface
@@ -43,14 +43,13 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 ```
 
-### 2. System dependencies (offline tools)
+### 2. Native llama.cpp binaries (for OCR + benchmarking)
 
-- **Tesseract OCR** (optional — printed-text fallback only; the default digitize
-  engine is the vision model below):
-  - Ubuntu: `sudo apt install tesseract-ocr`
-  - Windows: `winget install UB-Mannheim.TesseractOCR`
-- **Pandoc + LaTeX** (best-quality PDF; optional — app falls back to fpdf2):
-  - Ubuntu: `sudo apt install pandoc texlive-latex-recommended`
+Digitize uses **DeepSeek-OCR** via `llama-mtmd-cli` (from llama.cpp). `download_model.sh`
+auto-fetches the binaries into `bin/` on Linux/macOS. On Windows, download a build from
+https://github.com/ggml-org/llama.cpp/releases and set `ADTC_MTMD_CLI` to `llama-mtmd-cli.exe`
+(or put it on PATH). Optional: **Pandoc** for best-quality PDF (`sudo apt install pandoc`;
+otherwise the app uses fpdf2).
 
 ### 3. Models (downloaded by the submission script)
 
@@ -60,24 +59,12 @@ From the **repo root** (one level up):
 bash download_model.sh
 ```
 
-This fetches all GGUF weights into `model/` (~5.7 GB total):
-- **chat model** (~2.4 GB) — the ADTC-benchmarked text model (RAG Q&A)
-- **embedding model** (~25 MB) — local RAG embeddings
-- **vision model + mmproj** (~3.3 GB) — Qwen2.5-VL for digitizing handwriting/images
+Fetches into `model/` (~4.6 GB): the **chat model** (Qwen2.5-1.5B, ~1 GB — the ADTC-scored
+text model), the **embedding model** (bge-small, ~25 MB), and the **OCR model** (DeepSeek-OCR
+Q8 + mmproj, ~3.6 GB). The big models are never co-resident: digitize runs the OCR model in a
+short-lived subprocess after evicting the chat/embedder, so peak RAM stays within 8 GB.
 
-If your connection is slow, run the script yourself and let it finish first. The
-heavy models are never co-resident: the vision model loads alone at digitize time
-and the chat model loads for Q&A, so peak RAM stays within the 8 GB budget.
-
-Digitize engine selection: `ADTC_OCR_ENGINE=auto|vlm|tesseract` (default `auto` —
-uses the vision model when present). Tune VLM speed/accuracy with `ADTC_VLM_MAX_SIDE`
-(default 1280).
-
-### 4. (Optional) pix2tex formula OCR
-
-```bash
-pip install -r requirements-optional.txt   # pulls in PyTorch (CPU); heavier
-```
+Tune OCR via env: `ADTC_MTMD_CLI` (binary path), `ADTC_VLM_THREADS`, `ADTC_VLM_PROMPT`.
 
 ---
 

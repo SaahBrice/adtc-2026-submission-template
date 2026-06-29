@@ -1,5 +1,0 @@
-# Optional dependencies — enable extra features. NOT required for the core app.
-
-# Handwritten/printed math formula → LaTeX ("added advantage" feature).
-# WARNING: pulls in PyTorch (CPU). Heavier; install only if you need formula OCR.
-pix2tex>=0.1.2

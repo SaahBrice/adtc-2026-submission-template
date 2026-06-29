@@ -54,13 +54,14 @@ internet — directly addressing the **Corporate/Enterprise** domain and the
 - **Document rendering:** Markdown always; DOCX via `python-docx`; PDF via Pandoc
   if present, else an `fpdf2` fallback. Formulas render to images with matplotlib
   **mathtext** — no system TeX install required.
-- **Digitize / OCR:** the primary engine is **Qwen2.5-VL-3B** (GGUF + mmproj) run
-  through llama.cpp — a vision-language model that reads handwriting, layout, and
-  math directly into clean Markdown with LaTeX. Tesseract was evaluated and rejected
-  for handwriting (unusable on cursive); it remains a fast fallback for printed text.
-  The VLM is app-side only (not the ADTC-benchmarked model) and is loaded alone at
-  digitize time via a single-active-model manager so peak RAM stays within 8 GB.
-  Resolution is the main latency lever (`VLM_MAX_SIDE`, default 1280 for accuracy).
+- **Digitize / OCR:** **DeepSeek-OCR** (GGUF + mmproj) run through the native
+  `llama-mtmd-cli`. We benchmarked four engines on CPU (4 threads): Tesseract
+  (unusable on cursive), Qwen2.5-VL-3B (good but ~330 s/page), LightOnOCR-1B
+  (176 s, fragile on degraded scans), and **DeepSeek-OCR (~40 s/page, robust to
+  degraded scans)** — its "optical compression" emits few vision tokens, the key
+  CPU win. App-side only (not the ADTC-benchmarked model); the OCR subprocess loads
+  transiently and we evict the chat/embedder first to stay within 8 GB. Reads
+  handwriting, printed text, tables, and math into clean Markdown with LaTeX.
 
 ### Alternatives considered (measured on dev, 4 threads, flash-attn + q8 KV)
 
@@ -113,8 +114,8 @@ Raw `llama-bench` (4 threads) confirms: **pp512 = 66.6 t/s, tg128 = 18.6 t/s**. 
 answers **stream** (first tokens ~1–2 s warm). The previously-provisional Phi-3.5-mini (3.8B)
 measured 6.2 t/s / 4.15 GB — the switch to 1.5B is ~2.7× throughput and ~2.4× less RAM.
 
-Digitize (Qwen2.5-VL, app-side, not the scored model): see "Design Decisions"; an OCR-
-specialized engine is under evaluation to cut page latency.
+Digitize (DeepSeek-OCR, app-side, not the scored model): **~40 s/page** on CPU and robust
+to degraded scans/photos — see "Design Decisions" for the engine benchmark.
 
 Reproduce:
 

@@ -35,8 +35,8 @@ def test_index_page_served():
 
 def test_status_reports_model_presence():
     body = _client().get("/api/status").json()
-    assert {"llm_present", "embed_present", "vision_present", "engine"} <= set(body)
-    assert body["engine"] in {"vlm", "tesseract"}
+    assert {"llm_present", "embed_present", "vision_present"} <= set(body)
+    assert isinstance(body["vision_present"], bool)
 
 
 def test_create_and_list_session(isolated_sessions):

@@ -57,14 +57,12 @@ def create_app():
 
     @app.get("/api/status")
     def status():
-        from ..ocr.pipeline import resolve_engine
+        from ..ocr import is_available as vision_available
 
         return {
             "llm_present": CONFIG.llm.model_path.exists(),
             "embed_present": CONFIG.embedding.model_path.exists(),
-            "vision_present": CONFIG.vision.model_path.exists()
-            and CONFIG.vision.mmproj_path.exists(),
-            "engine": resolve_engine(CONFIG),
+            "vision_present": vision_available(CONFIG.vision),
         }
 
     # --- digitize (not chat-scoped) -----------------------------------------

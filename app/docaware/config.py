@@ -152,38 +152,6 @@ class RAGConfig:
     sessions_dir: Path = DATA_DIR / "sessions"
 
 
-def _detect_tesseract() -> str:
-    """Return a usable tesseract command/path.
-
-    Honors ``ADTC_TESSERACT_CMD``; otherwise tries the bare name (PATH) and the
-    standard Windows install location so the app works without PATH changes.
-    """
-    explicit = os.environ.get("ADTC_TESSERACT_CMD")
-    if explicit:
-        return explicit
-    candidates = [
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-    ]
-    for c in candidates:
-        if Path(c).exists():
-            return c
-    return "tesseract"  # assume on PATH (Linux/macOS default)
-
-
-@dataclass
-class OCRConfig:
-    """OCR pipeline settings. Math/formula OCR is optional ("added advantage")."""
-
-    # Digitize engine: "vlm" (vision model, best for handwriting) or "tesseract"
-    # (printed text only). "auto" uses the VLM when its weights are present.
-    engine: str = field(default_factory=lambda: _env("OCR_ENGINE", "auto"))
-    tesseract_lang: str = field(default_factory=lambda: _env("OCR_LANG", "eng"))
-    tesseract_cmd: str = field(default_factory=_detect_tesseract)
-    enable_formula_ocr: bool = field(default_factory=lambda: _env("ENABLE_FORMULA_OCR", "1") == "1")
-    dpi: int = 300
-
-
 @dataclass
 class AppConfig:
     """Top-level config bundle. Construct once and pass down."""
@@ -192,7 +160,6 @@ class AppConfig:
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
-    ocr: OCRConfig = field(default_factory=OCRConfig)
 
     def ensure_dirs(self) -> None:
         """Create working directories if missing (safe to call repeatedly)."""

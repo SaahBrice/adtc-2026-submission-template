@@ -1,5 +1,6 @@
-"""docaware.ocr — Image → text/formula extraction (the "added advantage")."""
+"""docaware.ocr — Image → Markdown (DeepSeek-OCR via native llama.cpp)."""
 
-from .pipeline import ocr_image_to_text, digitize_image
+from .pipeline import image_to_markdown
+from .vlm import get_vision, is_available
 
-__all__ = ["ocr_image_to_text", "digitize_image"]
+__all__ = ["image_to_markdown", "get_vision", "is_available"]

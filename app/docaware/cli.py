@@ -52,16 +52,16 @@ def _cmd_ask(args: argparse.Namespace) -> int:
 def _cmd_info(_: argparse.Namespace) -> int:
     import json
 
-    from .ocr.pipeline import resolve_engine
+    from .ocr import is_available as vision_available
 
     print(json.dumps(CONFIG.as_dict(), indent=2))
     print(f"\nLLM model present:    {CONFIG.llm.model_path.exists()}  ({CONFIG.llm.model_path})")
     print(
         f"Embed model present:  {CONFIG.embedding.model_path.exists()}  ({CONFIG.embedding.model_path})"
     )
-    vision_ok = CONFIG.vision.model_path.exists() and CONFIG.vision.mmproj_path.exists()
-    print(f"Vision model present: {vision_ok}  ({CONFIG.vision.model_path})")
-    print(f"Digitize engine:      {resolve_engine(CONFIG)}")
+    print(
+        f"OCR (DeepSeek) ready: {vision_available(CONFIG.vision)}  (mtmd_cli: {CONFIG.vision.mtmd_cli or 'NOT FOUND'})"
+    )
     return 0
 
 

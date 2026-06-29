@@ -3,13 +3,6 @@
 from docaware.llm import prompts
 
 
-def test_format_document_messages_structure():
-    msgs = prompts.format_document_messages("raw ocr text")
-    assert msgs[0]["role"] == "system"
-    assert msgs[1]["role"] == "user"
-    assert "raw ocr text" in msgs[1]["content"]
-
-
 def test_qa_messages_labels_contexts_with_sources():
     msgs = prompts.qa_messages(
         "What is X?", [("report.pdf p.1", "first ctx"), ("report.pdf p.2", "second ctx")]
@@ -42,7 +35,9 @@ def test_condense_question_messages():
     assert "what about Q4?" in msgs[1]["content"]
 
 
-def test_summary_messages_structure():
-    msgs = prompts.summary_messages("a long document")
+def test_update_summary_messages():
+    msgs = prompts.update_summary_messages(
+        "prev summary", [{"role": "user", "content": "new thing"}]
+    )
     assert msgs[0]["role"] == "system"
-    assert msgs[1]["content"] == "a long document"
+    assert "prev summary" in msgs[1]["content"] and "new thing" in msgs[1]["content"]
